@@ -86,8 +86,6 @@ export default function PatientDetailTab({ patient: p, onBack }: Props) {
               { label:"Systolic BP",  val:p.systolic_bp,   unit:"mmHg", type:"sbp"  },
               { label:"Diastolic BP", val:p.diastolic_bp,  unit:"mmHg", type:"dbp"  },
               { label:"Heart Rate",   val:p.heart_rate,    unit:"bpm",  type:"hr"   },
-              { label:"Height",       val:p.height,        unit:"cm",   type:""     },
-              { label:"Weight",       val:p.weight,        unit:"kg",   type:""     },
               { label:"BMI",          val:p.bmi,           unit:"",     type:"bmi"  },
             ].map(v => {
               const cls = vitalClass(v.val, v.type);
