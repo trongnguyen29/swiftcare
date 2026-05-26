@@ -1,7 +1,7 @@
 {
   "name": "ehr-app",
   "compatibility_date": "2024-01-01",
-  "main": "worker/index.ts",
+  "main": "src/worker/index.ts",
   "assets": {
     "directory": "./dist"
   }
