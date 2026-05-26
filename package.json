@@ -11,9 +11,11 @@
     "deploy": "npm run build && wrangler pages deploy dist --project-name=ehr-app"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.106.2",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
-    "recharts": "^2.12.7"
+    "recharts": "^2.12.7",
+    "supabase": "^2.101.0"
   },
   "devDependencies": {
     "@types/react": "^18.2.66",

@@ -1,23 +1,33 @@
-import { patient } from "../data/patient";
+// Sidebar — cohort-level info panel (no single-patient dummy data)
+// The Synthea dataset is a population cohort, not a single patient EHR
 
 interface SidebarProps {
   open: boolean;
   onToggle: () => void;
 }
 
+const QUICK_ACTIONS = [
+  "Export to CSV",
+  "Run Cohort Filter",
+  "Staging Workup",
+  "Referral Queue",
+  "Research Report",
+]
+
 export default function Sidebar({ open }: SidebarProps) {
   return (
     <aside className={`sidebar ${open ? "" : "collapsed"}`}>
-      {/* Demographics */}
+
+      {/* Dataset info */}
       <div className="sidebar-section">
-        <div className="sidebar-label">Demographics</div>
+        <div className="sidebar-label">Dataset</div>
         {[
-          ["Room", patient.room],
-          ["Blood Type", patient.bloodType],
-          ["Height", patient.height],
-          ["Weight", patient.weight],
-          ["BMI", patient.bmi.toFixed(1)],
-          ["Admitted", patient.admittedOn],
+          ["Source",    "Synthea Synthetic"],
+          ["Version",   "Lung Cancer Cohort"],
+          ["Tables",    "5 raw + 5 converted"],
+          ["Total Pts", "21,601"],
+          ["Features",  "771 columns"],
+          ["Codes",     "791 C-code mappings"],
         ].map(([k, v]) => (
           <div className="info-row" key={k}>
             <span className="info-key">{k}</span>
@@ -26,78 +36,89 @@ export default function Sidebar({ open }: SidebarProps) {
         ))}
       </div>
 
-      {/* Primary Dx */}
+      {/* Cohort breakdown */}
       <div className="sidebar-section">
-        <div className="sidebar-label">Primary Diagnosis</div>
-        <div style={{ fontSize: 12, color: "var(--text-primary)", fontWeight: 500, lineHeight: 1.5 }}>
-          {patient.primaryDx}
+        <div className="sidebar-label">Cohort Breakdown</div>
+        <div style={{ marginBottom: 10 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+            <span style={{ fontSize: 11, color: "var(--text-muted)" }}>LC Positive</span>
+            <span style={{ fontSize: 11, fontWeight: 700, color: "var(--danger)" }}>25.8%</span>
+          </div>
+          <div style={{ height: 6, background: "var(--border)", borderRadius: 3, overflow: "hidden" }}>
+            <div style={{ height: "100%", width: "25.8%", background: "var(--danger)", borderRadius: 3 }} />
+          </div>
+        </div>
+        <div style={{ marginBottom: 10 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+            <span style={{ fontSize: 11, color: "var(--text-muted)" }}>Former Smokers</span>
+            <span style={{ fontSize: 11, fontWeight: 700, color: "var(--warn)" }}>43.1%</span>
+          </div>
+          <div style={{ height: 6, background: "var(--border)", borderRadius: 3, overflow: "hidden" }}>
+            <div style={{ height: "100%", width: "43.1%", background: "var(--warn)", borderRadius: 3 }} />
+          </div>
+        </div>
+        <div>
+          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+            <span style={{ fontSize: 11, color: "var(--text-muted)" }}>Male</span>
+            <span style={{ fontSize: 11, fontWeight: 700, color: "var(--blue-600)" }}>57.5%</span>
+          </div>
+          <div style={{ height: 6, background: "var(--border)", borderRadius: 3, overflow: "hidden" }}>
+            <div style={{ height: "100%", width: "57.5%", background: "var(--blue-600)", borderRadius: 3 }} />
+          </div>
         </div>
       </div>
 
-      {/* Attending */}
+      {/* Key findings */}
       <div className="sidebar-section">
-        <div className="sidebar-label">Care Team</div>
-        <div className="info-row">
-          <span className="info-key">Attending</span>
-          <span className="info-val">{patient.attending}</span>
-        </div>
-        <div className="info-row">
-          <span className="info-key">Insurance</span>
-          <span className="info-val">{patient.insurance}</span>
-        </div>
-        <div className="info-row">
-          <span className="info-key">Emergency</span>
-          <span className="info-val" style={{ fontSize: 11 }}>{patient.emergencyContact}</span>
-        </div>
-      </div>
-
-      {/* Allergies */}
-      <div className="sidebar-section">
-        <div className="sidebar-label" style={{ color: "var(--danger)" }}>
-          ⚠ Allergies ({patient.allergies.length})
-        </div>
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
-          {patient.allergies.map((a) => (
-            <div key={a.substance} className={`allergy-chip ${a.severity}`} title={a.reaction}>
-              <span>{a.severity === "severe" ? "⚠" : a.severity === "moderate" ? "●" : "○"}</span>
-              {a.substance}
-            </div>
-          ))}
-        </div>
-        <div style={{ marginTop: 8 }}>
-          {patient.allergies.map((a) => (
-            <div key={a.substance} style={{ fontSize: 11, color: "var(--text-muted)", marginBottom: 3 }}>
-              <span style={{ color: "var(--text-secondary)" }}>{a.substance}</span> → {a.reaction}
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Quick links */}
-      <div className="sidebar-section">
-        <div className="sidebar-label">Quick Actions</div>
-        {["View Orders", "Imaging", "Referrals", "Care Plan", "Discharge Summary"].map((item) => (
-          <div
-            key={item}
-            style={{
-              padding: "8px 0",
-              fontSize: 12,
-              color: "var(--text-secondary)",
-              cursor: "pointer",
-              borderBottom: "1px solid var(--border)",
-              display: "flex",
-              alignItems: "center",
-              gap: 6,
-              transition: "color 0.15s",
-            }}
-            onMouseEnter={(e) => (e.currentTarget.style.color = "var(--accent-blue)")}
-            onMouseLeave={(e) => (e.currentTarget.style.color = "var(--text-secondary)")}
-          >
-            <span style={{ fontSize: 10, color: "var(--text-muted)" }}>→</span>
-            {item}
+        <div className="sidebar-label" style={{ color: "var(--danger)" }}>⚠ Key Risk Findings</div>
+        {[
+          { label: "No LC under age 40",       color: "var(--ok)"       },
+          { label: "Peak incidence: 60–70 yrs", color: "var(--warn)"     },
+          { label: "Former smokers: 34.8% LC",  color: "var(--danger)"   },
+          { label: "Never smokers: 18.8% LC",   color: "var(--ok)"       },
+          { label: "High SCC (120+): 3,794 pts",color: "var(--danger)"   },
+        ].map(f => (
+          <div key={f.label} style={{ display: "flex", alignItems: "center", gap: 7, padding: "6px 0", borderBottom: "1px solid var(--border)", fontSize: 11 }}>
+            <div style={{ width: 6, height: 6, borderRadius: "50%", background: f.color, flexShrink: 0 }} />
+            <span style={{ color: "var(--text-body)" }}>{f.label}</span>
           </div>
         ))}
       </div>
+
+      {/* Avg vitals */}
+      <div className="sidebar-section">
+        <div className="sidebar-label">Cohort Avg Vitals</div>
+        {[
+          ["Avg Age",      "59.5 yrs"  ],
+          ["Avg BMI",      "28.9"      ],
+          ["Avg Systolic", "124.3 mmHg"],
+          ["Avg HR",       "81.0 bpm"  ],
+          ["Avg HbA1c",    "5.8%"      ],
+          ["Avg Chol.",    "185.5 mg/dL"],
+        ].map(([k, v]) => (
+          <div className="info-row" key={k}>
+            <span className="info-key">{k}</span>
+            <span className="info-val">{v}</span>
+          </div>
+        ))}
+      </div>
+
+      {/* Quick actions */}
+      <div className="sidebar-section">
+        <div className="sidebar-label">Quick Actions</div>
+        {QUICK_ACTIONS.map(item => (
+          <div
+            key={item}
+            className="sidebar-nav-item"
+            onMouseEnter={e => (e.currentTarget.style.color = "var(--blue-600)")}
+            onMouseLeave={e => (e.currentTarget.style.color = "var(--text-muted)")}
+          >
+            {item}
+            <span className="nav-arrow">›</span>
+          </div>
+        ))}
+      </div>
+
     </aside>
-  );
+  )
 }

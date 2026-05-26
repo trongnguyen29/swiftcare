@@ -1,4 +1,4 @@
-import type { Patient } from "../../App";
+import type { Patient } from "../../lib/supabase";
 
 interface Props { patient: Patient; onBack: () => void; }
 

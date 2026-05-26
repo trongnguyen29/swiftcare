@@ -1,6 +1,11 @@
-import { Hono } from "hono";
-const app = new Hono<{ Bindings: Env }>();
 
-app.get("/api/", (c) => c.json({ name: "Cloudflare" }));
 
-export default app;
+export default {
+  async fetch(request: Request): Promise<Response> {
+    const url = new URL(request.url)
+    if (url.pathname === '/api/') {
+      return Response.json({ name: 'Cloudflare' })
+    }
+    return new Response('Not found', { status: 404 })
+  },
+}
