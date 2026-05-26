@@ -1,66 +1,45 @@
-// src/App.tsx
-
 import { useState } from "react";
-import reactLogo from "./assets/react.svg";
-import viteLogo from "/vite.svg";
-import cloudflareLogo from "./assets/Cloudflare_Logo.svg";
-import honoLogo from "./assets/hono.svg";
+import Header from "./components/Header";
+import Sidebar from "./components/Sidebar";
+import OverviewTab from "./components/tabs/OverviewTab";
+import MedicationsTab from "./components/tabs/MedicationsTab";
+import LabsTab from "./components/tabs/LabsTab";
+import NotesTab from "./components/tabs/NotesTab";
+import ProblemsTab from "./components/tabs/ProblemsTab";
 import "./App.css";
 
-function App() {
-	const [count, setCount] = useState(0);
-	const [name, setName] = useState("unknown");
+const TABS = ["Overview", "Problems", "Medications", "Labs", "Notes"];
 
-	return (
-		<>
-			<div>
-				<a href="https://vite.dev" target="_blank">
-					<img src={viteLogo} className="logo" alt="Vite logo" />
-				</a>
-				<a href="https://react.dev" target="_blank">
-					<img src={reactLogo} className="logo react" alt="React logo" />
-				</a>
-				<a href="https://hono.dev/" target="_blank">
-					<img src={honoLogo} className="logo cloudflare" alt="Hono logo" />
-				</a>
-				<a href="https://workers.cloudflare.com/" target="_blank">
-					<img
-						src={cloudflareLogo}
-						className="logo cloudflare"
-						alt="Cloudflare logo"
-					/>
-				</a>
-			</div>
-			<h1>Vite + React + Hono + Cloudflare</h1>
-			<div className="card">
-				<button
-					onClick={() => setCount((count) => count + 1)}
-					aria-label="increment"
-				>
-					count is {count}
-				</button>
-				<p>
-					Edit <code>src/App.tsx</code> and save to test HMR
-				</p>
-			</div>
-			<div className="card">
-				<button
-					onClick={() => {
-						fetch("/api/")
-							.then((res) => res.json() as Promise<{ name: string }>)
-							.then((data) => setName(data.name));
-					}}
-					aria-label="get name"
-				>
-					Name from API is: {name}
-				</button>
-				<p>
-					Edit <code>worker/index.ts</code> to change the name
-				</p>
-			</div>
-			<p className="read-the-docs">Click on the logos to learn more</p>
-		</>
-	);
+export default function App() {
+  const [activeTab, setActiveTab] = useState("Overview");
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+
+  return (
+    <div className="app-shell">
+      <Header />
+      <div className="content-area">
+        <Sidebar open={sidebarOpen} onToggle={() => setSidebarOpen(!sidebarOpen)} />
+        <main className={`main-content ${sidebarOpen ? "" : "sidebar-collapsed"}`}>
+          <div className="tab-bar">
+            {TABS.map((tab) => (
+              <button
+                key={tab}
+                className={`tab-btn ${activeTab === tab ? "active" : ""}`}
+                onClick={() => setActiveTab(tab)}
+              >
+                {tab}
+              </button>
+            ))}
+          </div>
+          <div className="tab-content">
+            {activeTab === "Overview" && <OverviewTab />}
+            {activeTab === "Problems" && <ProblemsTab />}
+            {activeTab === "Medications" && <MedicationsTab />}
+            {activeTab === "Labs" && <LabsTab />}
+            {activeTab === "Notes" && <NotesTab />}
+          </div>
+        </main>
+      </div>
+    </div>
+  );
 }
-
-export default App;
