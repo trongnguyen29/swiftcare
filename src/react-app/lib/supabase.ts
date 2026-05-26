@@ -7,11 +7,11 @@ export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
 
 // All 5 raw data tables
 export const TABLES = [
-  'synthea-pt30k-lc-data-sel.csv',
-  'synthea-pt30k1-lc-data-sel.csv',
-  'synthea-pt30k2-lc-data-sel.csv',
-  'synthea-pt30k3-lc-data-sel.csv',
-  'synthea-pt30k4-lc-data-sel.csv',
+  'synthea_pt30k_lc_data_sel_convert',
+  'synthea_pt30k1_lc_data_sel_convert',
+  'synthea_pt30k2_lc_data_sel_convert',
+  'synthea_pt30k3_lc_data_sel_convert',
+  'synthea_pt30k4_lc_data_sel_convert',
 ]
 
 // C-code → friendly name map
@@ -25,8 +25,6 @@ export const CODE_MAP: Record<string, string> = {
   'C-8480-6':    'systolic_bp',
   'C-8462-4':    'diastolic_bp',
   'C-8867-4':    'heart_rate',
-  'C-8302-2':    'height',
-  'C-29463-7':   'weight',
   'C-39156-5':   'bmi',
   'C-72166-2':   'tobacco_status',
   'C-72514-3':   'pain_score',
@@ -54,7 +52,10 @@ export function normalizeRow(row: Record<string, unknown>): Patient {
   }
   for (const [code, name] of Object.entries(CODE_MAP)) {
     const v = row[code]
-    p[name] = v != null ? (isNaN(Number(v)) ? v : Number(v)) : null
+    if (v == null) { p[name] = null; continue }
+    const numeric = Number(v)
+    // Keep as string if it is a category label (normal/abnormal/gt70/former/etc.)
+    p[name] = (!isNaN(numeric) && String(v).trim() !== '') ? numeric : v
   }
   return p as unknown as Patient
 }
@@ -73,8 +74,6 @@ export type Patient = {
   systolic_bp: number | null
   diastolic_bp: number | null
   heart_rate: number | null
-  height: number | null
-  weight: number | null
   bmi: number | null
   tobacco_status: string | null
   pain_score: number | null

@@ -40,7 +40,7 @@ export default function PatientListTab({ onSelect }: Props) {
       if (filterTobacco !== 'all') q = q.eq('C-72166-2', filterTobacco)
 
       q = q
-        .order('scc', { ascending: false, nullsFirst: false })
+        .order('ptnum', { ascending: true })
         .range(page * PER_PAGE, (page + 1) * PER_PAGE - 1)
 
       const { data, error: err, count } = await q
