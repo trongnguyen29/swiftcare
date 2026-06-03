@@ -1,23 +1,11 @@
 import { useState, useEffect } from 'react'
+import { saveNote as apiSaveNote, loadNotes as apiLoadNotes } from '../lib/api'
 import type { SavedNote } from '../lib/supabase'
 
 interface Props {
   patientId: string | null
   transcript: string
   onClear: () => void
-}
-
-function loadNotes(patientId: string): SavedNote[] {
-  try {
-    const raw = localStorage.getItem(`notes_${patientId}`)
-    return raw ? JSON.parse(raw) : []
-  } catch { return [] }
-}
-
-function saveNote(note: SavedNote) {
-  const notes = loadNotes(note.patientId)
-  notes.unshift(note)
-  localStorage.setItem(`notes_${note.patientId}`, JSON.stringify(notes.slice(0, 50)))
 }
 
 export default function TranscriptPanel({ patientId, transcript, onClear }: Props) {
@@ -35,20 +23,13 @@ export default function TranscriptPanel({ patientId, transcript, onClear }: Prop
   }, [transcript])
 
   useEffect(() => {
-    if (patientId) setHistory(loadNotes(patientId))
+    if (patientId) apiLoadNotes(patientId).then(setHistory).catch(() => {})
   }, [patientId])
 
-  function handleSave() {
+  async function handleSave() {
     if (!patientId || !editedTranscript.trim()) return
-    const note: SavedNote = {
-      id:         crypto.randomUUID(),
-      patientId,
-      transcript: editedTranscript,
-      notes,
-      createdAt:  new Date().toISOString(),
-    }
-    saveNote(note)
-    setHistory(loadNotes(patientId))
+    await apiSaveNote(patientId, editedTranscript, notes).catch(() => {})
+    apiLoadNotes(patientId).then(setHistory).catch(() => {})
     setSaved(true)
     setNotes('')
   }

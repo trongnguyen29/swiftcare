@@ -1,17 +1,5 @@
-import { createClient } from '@supabase/supabase-js'
-
-const SUPABASE_URL = 'https://ujqrxhhshxgqqjkblorh.supabase.co'
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVqcXJ4aGhzaHhncXFqa2Jsb3JoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk4MDU3NjAsImV4cCI6MjA5NTM4MTc2MH0.t4CgUYE5oPLhocC2YtRF-WW6tMWu2Cvd0mYB_A1jWhk'
-
-export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
-
-export const TABLES = [
-  'synthea_pt30k_lc_data_sel_convert',
-  'synthea_pt30k1_lc_data_sel_convert',
-  'synthea_pt30k2_lc_data_sel_convert',
-  'synthea_pt30k3_lc_data_sel_convert',
-  'synthea_pt30k4_lc_data_sel_convert',
-]
+// Supabase credentials and queries are handled by the Rust backend (src-tauri/src/lib.rs).
+// This file contains only types and the column-code normaliser used by api.ts.
 
 export const CODE_MAP: Record<string, string> = {
   'C-424144002': 'age',

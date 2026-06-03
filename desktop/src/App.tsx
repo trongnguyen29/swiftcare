@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { getApiKey, setApiKey as persistApiKey } from './lib/api'
 import PatientSearch from './components/PatientSearch'
 import PatientSummary from './components/PatientSummary'
 import PatientCharts from './components/PatientCharts'
@@ -13,13 +14,17 @@ type PatientTab = 'overview' | 'ai' | 'history' | 'charts' | 'visit'
 export default function App() {
   const [selected,     setSelected]     = useState<Patient | null>(null)
   const [transcript,   setTranscript]   = useState('')
-  const [apiKey,       setApiKey]       = useState(() => localStorage.getItem('openai_key') || '')
+  const [apiKey,       setApiKey]       = useState('')
   const [showSettings, setShowSettings] = useState(false)
   const [activeTab,    setActiveTab]    = useState<PatientTab>('overview')
 
+  useEffect(() => {
+    getApiKey().then(k => { if (k) setApiKey(k) }).catch(() => {})
+  }, [])
+
   function handleApiKey(k: string) {
     setApiKey(k)
-    localStorage.setItem('openai_key', k)
+    persistApiKey(k).catch(() => {})
   }
 
   function selectPatient(p: Patient) {

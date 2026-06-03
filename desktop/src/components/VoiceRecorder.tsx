@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
+import { transcribeAudio } from '../lib/api'
 
 type Status = 'idle' | 'recording' | 'transcribing' | 'done' | 'error'
 
@@ -108,21 +109,7 @@ export default function VoiceRecorder({ patientId, onTranscript, apiKey }: Props
       const blob = new Blob(chunksRef.current, { type: mr.mimeType || 'audio/webm' })
       mr.stream.getTracks().forEach(t => t.stop())
       try {
-        const form = new FormData()
-        form.append('file', blob, 'recording.webm')
-        form.append('model', 'whisper-1')
-        if (patientId) form.append('prompt', `Patient ID: ${patientId}. Medical consultation.`)
-
-        const res = await fetch('https://api.openai.com/v1/audio/transcriptions', {
-          method: 'POST',
-          headers: { Authorization: `Bearer ${apiKey}` },
-          body: form,
-        })
-        if (!res.ok) {
-          const err = await res.json().catch(() => ({ error: { message: res.statusText } }))
-          throw new Error(err?.error?.message || res.statusText)
-        }
-        const { text } = await res.json()
+        const text = await transcribeAudio(blob, patientId ?? '', apiKey)
         onTranscript(text)
         setStatus('done')
       } catch (e: unknown) {
