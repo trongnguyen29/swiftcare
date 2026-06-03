@@ -23,8 +23,23 @@ export default function App() {
     <div className="app-shell">
       <header className="ehr-header">
         <div className="header-logo">
-          <div className="logo-mark">SC</div>
-          SwiftCare Desktop
+          <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ flexShrink: 0 }}>
+            {/* Leaf-wing shape */}
+            <path d="M6 26 C6 26 4 14 10 9 C16 4 26 5 27 6 C28 7 26 18 20 22 C14 26 6 26 6 26Z" fill="url(#sc-grad)" />
+            {/* Inner wing line */}
+            <path d="M9 23 C9 23 10 15 15 11 C20 7 25 8 25 8" stroke="#ffffff" strokeWidth="1.2" strokeLinecap="round" fill="none" opacity="0.5"/>
+            {/* Medical cross */}
+            <rect x="10.5" y="14" width="2" height="6" rx="0.8" fill="#ffffff"/>
+            <rect x="8" y="16.5" width="7" height="2" rx="0.8" fill="#ffffff"/>
+            <defs>
+              <linearGradient id="sc-grad" x1="4" y1="26" x2="27" y2="5" gradientUnits="userSpaceOnUse">
+                <stop offset="0%" stopColor="#0d9488"/>
+                <stop offset="100%" stopColor="#2dd4bf"/>
+              </linearGradient>
+            </defs>
+          </svg>
+          <span style={{ color: 'var(--navy-600)', fontWeight: 700, letterSpacing: '-.3px' }}>SwiftCare</span>
+          <span style={{ color: 'var(--text-muted)', fontWeight: 400, fontSize: 13 }}>Desktop</span>
         </div>
         <div className="header-divider" />
         <span className="header-subtitle">EHR Visit Assistant</span>
