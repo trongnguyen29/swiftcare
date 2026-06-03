@@ -1,6 +1,6 @@
 import type { Patient } from '../lib/supabase'
 
-interface Props { patient: Patient }
+interface Props { patient: Patient; section?: 'overview' | 'history' }
 
 function vitalCls(val: number | null, type: string) {
   if (val == null) return ''
@@ -24,7 +24,9 @@ const SEV_COLOR: Record<string, string> = {
   mild: 'var(--warn)', moderate: 'var(--warn)', severe: 'var(--danger)',
 }
 
-export default function PatientSummary({ patient: p }: Props) {
+export default function PatientSummary({ patient: p, section }: Props) {
+  const showOverview = !section || section === 'overview'
+  const showHistory  = !section || section === 'history'
   const sccPct = p.scc ? Math.min(100, Math.round((p.scc / 172) * 100)) : 0
   const isLC   = p.label === 1
 
@@ -44,8 +46,8 @@ export default function PatientSummary({ patient: p }: Props) {
   return (
     <div className="summary-wrap">
 
-      {/* ── Hero ── */}
-      <div className="summary-hero">
+      {/* ── Hero (overview only) ── */}
+      {showOverview && <div className="summary-hero">
         <div className="hero-avatar">{p.administrative_sex === 'Male' ? '♂' : p.administrative_sex === 'Female' ? '♀' : '⊕'}</div>
         <div className="hero-info">
           <div className="hero-id">{displayName}</div>
@@ -69,10 +71,10 @@ export default function PatientSummary({ patient: p }: Props) {
             <div className="scc-bar-fill" style={{ width: `${sccPct}%` }} />
           </div>
         </div>
-      </div>
+      </div>}
 
-      {/* ── Vitals · Labs · Risk ── */}
-      <div className="summary-cols">
+      {/* ── Vitals · Labs · Risk (overview) ── */}
+      {showOverview && <div className="summary-cols">
         <div className="card summary-card">
           <div className="card-header"><span className="card-title">Vital Signs</span></div>
           <div className="summary-fields">
@@ -162,10 +164,10 @@ export default function PatientSummary({ patient: p }: Props) {
             </div>
           </div>
         </div>
-      </div>
+      </div>}
 
-      {/* ── Problems · Medications · Allergies ── */}
-      <div className="summary-cols">
+      {/* ── Problems · Medications · Allergies (history) ── */}
+      {showHistory && <div className="summary-cols">
 
         {/* Active Problems */}
         <div className="card summary-card">
@@ -235,10 +237,10 @@ export default function PatientSummary({ patient: p }: Props) {
             ))}
           </div>
         </div>
-      </div>
+      </div>}
 
-      {/* ── SDOH · Insurance · Care Team ── */}
-      <div className="summary-cols">
+      {/* ── SDOH · Insurance · Care Team (history) ── */}
+      {showHistory && <div className="summary-cols">
 
         {/* SDOH */}
         <div className="card summary-card">
@@ -308,10 +310,10 @@ export default function PatientSummary({ patient: p }: Props) {
             ))}
           </div>
         </div>
-      </div>
+      </div>}
 
-      {/* ── Goals · Assessment Plan ── */}
-      {(p.goals?.length || p.assessment_plan) && (
+      {/* ── Goals · Assessment Plan (history) ── */}
+      {showHistory && (p.goals?.length || p.assessment_plan) && (
         <div className="summary-cols" style={{ gridTemplateColumns: p.goals?.length ? '1fr 2fr' : '1fr' }}>
           {p.goals?.length > 0 && (
             <div className="card summary-card">
