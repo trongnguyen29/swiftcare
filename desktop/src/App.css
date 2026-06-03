@@ -158,6 +158,66 @@ body{font-family:var(--font);background:var(--bg-page);color:var(--text-body);fo
 .history-transcript{font-size:12px;color:var(--text-body);line-height:1.6;margin-bottom:4px}
 .history-notes{font-size:11px;color:var(--text-muted);border-top:1px solid var(--border);padding-top:4px;margin-top:4px;font-style:italic}
 
+/* ── CHARTS ── */
+.charts-wrap{display:flex;flex-direction:column;gap:12px}
+.charts-two-col{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.chart-card{overflow:hidden}
+
+/* Risk rings */
+.risk-rings-card{overflow:hidden}
+.risk-rings-row{display:flex;align-items:center;gap:16px;padding:16px 20px;flex-wrap:wrap}
+.risk-ring-wrap{display:flex;flex-direction:column;align-items:center;gap:4px;min-width:72px}
+.risk-ring-label{font-size:10px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;text-align:center}
+.risk-ring-divider{width:1px;height:70px;background:var(--border)}
+.risk-rings-legend{margin-left:auto;display:flex;flex-direction:column;gap:4px}
+.rings-legend-item{font-size:11px;color:var(--text-muted);display:flex;align-items:center;gap:6px}
+
+/* Gauge bars */
+.gauges-body{padding:10px 16px;display:flex;flex-direction:column;gap:10px}
+.gauges-body--grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:10px 16px}
+.gauge-row{display:flex;align-items:center;gap:10px}
+.gauge-label{font-size:11px;color:var(--text-muted);width:100px;flex-shrink:0;font-weight:500}
+.gauge-track{flex:1;height:10px;background:var(--bg-subtle);border-radius:5px;position:relative;overflow:visible;border:1px solid var(--border)}
+.gauge-normal-zone{position:absolute;top:0;height:100%;background:rgba(22,163,74,.12);border-radius:5px;pointer-events:none}
+.gauge-fill{height:100%;border-radius:5px;transition:width .4s ease;max-width:100%}
+.gauge-needle{position:absolute;top:-3px;width:2px;height:16px;border-radius:2px;transform:translateX(-50%)}
+.gauge-val{font-size:11px;font-weight:700;font-family:var(--mono);width:72px;text-align:right;flex-shrink:0}
+.gauge-legend{display:flex;align-items:center;gap:5px;font-size:10px;color:var(--text-muted)}
+.gauge-legend-normal{display:inline-block;width:14px;height:8px;background:rgba(22,163,74,.2);border-radius:2px;border:1px solid rgba(22,163,74,.3)}
+
+/* Mini bar chart */
+.mini-bar-chart{padding:12px 16px 8px;display:flex;align-items:flex-end;gap:10px;position:relative;min-height:120px}
+.mini-bar-col{display:flex;flex-direction:column;align-items:center;gap:3px;flex:1}
+.mini-bar-wrap{width:100%;height:80px;background:var(--bg-subtle);border-radius:var(--radius-sm);position:relative;display:flex;align-items:flex-end;overflow:hidden;border:1px solid var(--border)}
+.mini-bar-fill{width:100%;border-radius:var(--radius-sm) var(--radius-sm) 0 0;transition:height .4s ease;min-height:4px}
+.mini-bar-ref-line{position:absolute;left:0;right:0;height:2px;background:rgba(99,102,241,.5);z-index:2}
+.mini-bar-label{font-size:10px;color:var(--text-muted);font-weight:600;text-align:center}
+.mini-bar-val{font-size:11px;font-weight:700;font-family:var(--mono)}
+.mini-bar-ref-legend{position:absolute;bottom:4px;right:8px;font-size:9px;color:var(--text-faint);display:flex;align-items:center;gap:4px}
+.ref-dot{display:inline-block;width:8px;height:2px;background:rgba(99,102,241,.5);border-radius:1px}
+
+/* ── AI INSIGHTS ── */
+.ai-card{overflow:hidden}
+.ai-header{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px}
+.ai-badge{background:linear-gradient(135deg,var(--blue-600),var(--teal-500));color:#fff;font-size:10px;font-weight:700;padding:3px 7px;border-radius:6px;letter-spacing:.5px}
+.ai-empty{padding:20px;text-align:center;color:var(--text-muted);font-size:12px;font-style:italic}
+.ai-findings{display:flex;flex-direction:column}
+.ai-finding{cursor:pointer;border-bottom:1px solid var(--border);transition:background .15s;padding:0}
+.ai-finding:last-child{border-bottom:none}
+.ai-finding--open{}
+.ai-finding-row{display:flex;align-items:center;gap:10px;padding:10px 14px}
+.ai-finding-icon{width:20px;height:20px;border-radius:50%;color:#fff;font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.ai-finding-main{flex:1;display:flex;flex-direction:column;gap:1px;min-width:0}
+.ai-finding-cat{font-size:9px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:var(--text-faint)}
+.ai-finding-title{font-size:12px;font-weight:600;color:var(--text-heading)}
+.ai-finding-chevron{font-size:9px;flex-shrink:0}
+.ai-finding-detail{padding:10px 14px 12px 44px}
+.ai-detail-text{font-size:12px;color:var(--text-body);line-height:1.6;margin-bottom:6px}
+.ai-action{background:var(--bg-subtle);border-radius:var(--radius-sm);padding:8px 10px;margin-top:4px}
+.ai-action-label{font-size:9px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:var(--text-muted);display:block;margin-bottom:3px}
+.ai-action-text{font-size:11px;color:var(--text-heading);line-height:1.5}
+.ai-footer{padding:8px 14px;background:var(--bg-subtle);border-top:1px solid var(--border);font-size:10px;color:var(--text-faint);line-height:1.5;font-style:italic}
+
 /* ── SCROLLBAR ── */
 ::-webkit-scrollbar{width:5px;height:5px}
 ::-webkit-scrollbar-track{background:transparent}

@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import PatientSearch from './components/PatientSearch'
 import PatientSummary from './components/PatientSummary'
+import PatientCharts from './components/PatientCharts'
+import AIInsights from './components/AIInsights'
 import VoiceRecorder from './components/VoiceRecorder'
 import TranscriptPanel from './components/TranscriptPanel'
 import type { Patient } from './lib/supabase'
@@ -75,6 +77,8 @@ export default function App() {
           ) : (
             <>
               <PatientSummary patient={selected} />
+              <AIInsights patient={selected} />
+              <PatientCharts patient={selected} />
               <VoiceRecorder
                 patientId={selected.ptnum}
                 onTranscript={setTranscript}
