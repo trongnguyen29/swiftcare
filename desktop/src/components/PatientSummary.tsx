@@ -2,8 +2,15 @@ import type { Patient } from '../lib/supabase'
 
 interface Props { patient: Patient }
 
-function vitalCls(val: number | null, type: string) {
+function vitalCls(val: number | string | null, type: string) {
   if (val == null) return ''
+  // String values from DB (e.g. "normal" / "abnormal")
+  if (typeof val === 'string') {
+    const s = val.toLowerCase().trim()
+    if (s === 'normal') return 'ok'
+    if (s === 'abnormal' || s === 'high' || s === 'low') return 'high'
+    return ''
+  }
   if (type === 'sbp')   return val >= 130 ? 'high' : 'ok'
   if (type === 'dbp')   return val >= 80  ? 'high' : 'ok'
   if (type === 'hr')    return val > 100 || val < 60 ? 'high' : 'ok'
@@ -14,7 +21,7 @@ function vitalCls(val: number | null, type: string) {
   return ''
 }
 
-function fmt(val: number | null, unit = '') {
+function fmt(val: number | string | null, unit = '') {
   return val == null ? '—' : `${val}${unit ? ' ' + unit : ''}`
 }
 

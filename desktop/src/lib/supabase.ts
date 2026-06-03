@@ -61,18 +61,18 @@ export type Patient = {
   ethnicity: string | null
   marital: string | null
   state: string | null
-  systolic_bp: number | null
-  diastolic_bp: number | null
-  heart_rate: number | null
-  bmi: number | null
+  systolic_bp: number | string | null
+  diastolic_bp: number | string | null
+  heart_rate: number | string | null
+  bmi: number | string | null
   tobacco_status: string | null
-  pain_score: number | null
-  total_cholesterol: number | null
-  ldl: number | null
-  hdl: number | null
-  triglycerides: number | null
-  hba1c: number | null
-  glucose: number | null
+  pain_score: number | string | null
+  total_cholesterol: number | string | null
+  ldl: number | string | null
+  hdl: number | string | null
+  triglycerides: number | string | null
+  hba1c: number | string | null
+  glucose: number | string | null
 }
 
 export type SavedNote = {

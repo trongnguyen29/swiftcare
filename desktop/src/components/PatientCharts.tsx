@@ -30,7 +30,11 @@ const NORMAL: Record<string, { lo: number; hi: number }> = {
   glucose:           { lo: 70,  hi: 100 },
 }
 
-function statusColor(key: string, val: number) {
+function statusColor(key: string, val: number | string) {
+  if (typeof val === 'string') {
+    const s = val.toLowerCase().trim()
+    return (s === 'normal') ? 'var(--ok)' : 'var(--danger)'
+  }
   const n = NORMAL[key]
   if (!n) return 'var(--text-muted)'
   if (val > n.hi || val < n.lo) return 'var(--danger)'
@@ -38,17 +42,31 @@ function statusColor(key: string, val: number) {
 }
 
 /* Single horizontal gauge bar */
-function GaugeBar({ field, value }: { field: string; value: number | null }) {
+function GaugeBar({ field, value }: { field: string; value: number | string | null }) {
   if (value == null) return null
   const r = RANGES[field]
   const n = NORMAL[field]
   if (!r) return null
 
+  const color = statusColor(field, value)
+
+  // String values: show a solid colored bar at 50% width, no text inside track
+  if (typeof value === 'string') {
+    return (
+      <div className="gauge-row">
+        <div className="gauge-label">{r.label}</div>
+        <div className="gauge-track">
+          <div className="gauge-fill" style={{ width: '50%', background: color }} />
+        </div>
+        <div className="gauge-val" style={{ color, textTransform: 'capitalize' }}>{value}</div>
+      </div>
+    )
+  }
+
   const span = r.hi - r.lo
   const pct  = Math.min(100, Math.max(0, ((value - r.lo) / span) * 100))
   const nLo  = ((n.lo - r.lo) / span) * 100
   const nHi  = ((n.hi - r.lo) / span) * 100
-  const color = statusColor(field, value)
 
   return (
     <div className="gauge-row">
@@ -72,13 +90,13 @@ function GaugeBar({ field, value }: { field: string; value: number | null }) {
 }
 
 /* Mini bar chart for a group of values */
-interface BarDatum { label: string; value: number | null; unit: string; normalHi: number; key: string }
+interface BarDatum { label: string; value: number | string | null; unit: string; normalHi: number; key: string }
 
 function MiniBarChart({ data, title }: { data: BarDatum[]; title: string }) {
-  const valid = data.filter(d => d.value != null)
+  const valid = data.filter(d => d.value != null && typeof d.value === 'number')
   if (valid.length === 0) return null
 
-  const maxVal = Math.max(...valid.map(d => d.value!)) * 1.2
+  const maxVal = Math.max(...valid.map(d => d.value as number)) * 1.2
 
   return (
     <div className="chart-card card">
@@ -86,9 +104,20 @@ function MiniBarChart({ data, title }: { data: BarDatum[]; title: string }) {
       <div className="mini-bar-chart">
         {data.map(d => {
           if (d.value == null) return null
+          const color = statusColor(d.key, d.value)
+          if (typeof d.value === 'string') {
+            return (
+              <div key={d.label} className="mini-bar-col">
+                <div className="mini-bar-wrap">
+                  <div className="mini-bar-fill" style={{ height: '50%', background: color }} />
+                </div>
+                <div className="mini-bar-label">{d.label}</div>
+                <div className="mini-bar-val" style={{ color, textTransform: 'capitalize' }}>{d.value}</div>
+              </div>
+            )
+          }
           const pct   = Math.min(100, (d.value / maxVal) * 100)
           const refPct = Math.min(100, (d.normalHi / maxVal) * 100)
-          const color = statusColor(d.key, d.value)
           return (
             <div key={d.label} className="mini-bar-col">
               <div className="mini-bar-wrap">
