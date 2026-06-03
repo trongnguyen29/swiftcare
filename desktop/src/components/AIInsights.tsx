@@ -208,6 +208,98 @@ function derive(p: Patient): Finding[] {
     })
   }
 
+  /* ── CKD / Renal ── */
+  if (p.egfr != null && p.egfr < 30) {
+    findings.push({
+      severity: 'critical', category: 'Renal',
+      title: `Severe CKD — eGFR ${p.egfr} mL/min (Stage 4–5)`,
+      detail: 'eGFR < 30 indicates Stage 4–5 CKD. High risk for dialysis requirement. Avoid nephrotoxic agents.',
+      action: 'Nephrology referral. Review all medications for renal dosing. Discuss AV fistula/dialysis planning.',
+    })
+  } else if (p.egfr != null && p.egfr < 60) {
+    findings.push({
+      severity: 'warning', category: 'Renal',
+      title: `Moderate CKD — eGFR ${p.egfr} mL/min (Stage 3)`,
+      detail: 'eGFR 30–59 indicates Stage 3 CKD. Avoid NSAIDs and nephrotoxic contrast agents.',
+      action: 'Monitor creatinine and potassium quarterly. BP target < 130/80.',
+    })
+  }
+
+  /* ── SpO₂ ── */
+  if (p.oxygen_saturation != null && p.oxygen_saturation < 92) {
+    findings.push({
+      severity: 'critical', category: 'Respiratory',
+      title: `Low Oxygen Saturation — SpO₂ ${p.oxygen_saturation}%`,
+      detail: 'SpO₂ < 92% is clinically significant hypoxemia. Urgent assessment required.',
+      action: 'Supplemental O₂, ABG, chest X-ray. Consider pulmonology.',
+    })
+  } else if (p.oxygen_saturation != null && p.oxygen_saturation < 95) {
+    findings.push({
+      severity: 'warning', category: 'Respiratory',
+      title: `Borderline SpO₂ — ${p.oxygen_saturation}%`,
+      detail: 'SpO₂ 92–94% warrants close monitoring, especially in COPD or lung cancer patients.',
+    })
+  }
+
+  /* ── Severe allergies ── */
+  const severeAllergies = (p.allergies ?? []).filter(a => a.severity === 'severe' && a.status === 'active')
+  if (severeAllergies.length > 0) {
+    findings.push({
+      severity: 'critical', category: 'Allergies',
+      title: `${severeAllergies.length} Severe Active Allerg${severeAllergies.length > 1 ? 'ies' : 'y'}`,
+      detail: severeAllergies.map(a => `${a.substance} → ${a.reaction}`).join('; '),
+      action: 'Ensure allergy list is flagged in all prescribing systems. Verify no current medications are contraindicated.',
+    })
+  }
+
+  /* ── SDOH flags ── */
+  if (p.sdoh_housing_status && p.sdoh_housing_status.toLowerCase().includes('unstable')) {
+    findings.push({
+      severity: 'warning', category: 'Social Determinants',
+      title: 'Unstable Housing',
+      detail: `Patient housing status: "${p.sdoh_housing_status}". Unstable housing adversely impacts medication adherence and follow-up.`,
+      action: 'Social work referral. Connect to local housing assistance programs.',
+    })
+  }
+  if (p.sdoh_financial_strain === 'Severe' || p.sdoh_financial_strain === 'Moderate') {
+    findings.push({
+      severity: 'info', category: 'Social Determinants',
+      title: `Financial Strain — ${p.sdoh_financial_strain}`,
+      detail: 'Financial insecurity may impact medication adherence and access to care.',
+      action: 'Review medication cost burden. Explore patient assistance programs.',
+    })
+  }
+  if (p.sdoh_transportation_insecurity) {
+    findings.push({
+      severity: 'info', category: 'Social Determinants',
+      title: 'Transportation Insecurity',
+      detail: 'Patient reports difficulty accessing transportation to appointments.',
+      action: 'Explore telehealth options and transportation assistance programs.',
+    })
+  }
+
+  /* ── Active problem count ── */
+  const activeProblems = (p.problems ?? []).filter(pr => pr.status === 'active')
+  if (activeProblems.length >= 5) {
+    findings.push({
+      severity: 'info', category: 'Care Coordination',
+      title: `High Complexity — ${activeProblems.length} Active Conditions`,
+      detail: `Patient has ${activeProblems.length} active conditions requiring coordinated care across multiple specialties.`,
+      action: 'Consider multidisciplinary care conference. Review for polypharmacy.',
+    })
+  }
+
+  /* ── Medication count (polypharmacy) ── */
+  const activeMeds = (p.medications ?? []).filter(m => m.status === 'active')
+  if (activeMeds.length >= 7) {
+    findings.push({
+      severity: 'warning', category: 'Medications',
+      title: `Polypharmacy — ${activeMeds.length} Active Medications`,
+      detail: 'Patients on 7+ medications have significantly elevated risk of adverse drug interactions and non-adherence.',
+      action: 'Medication reconciliation. Consider deprescribing review.',
+    })
+  }
+
   /* ── All clear items ── */
   if (p.systolic_bp != null && p.systolic_bp < 130 && p.diastolic_bp != null && p.diastolic_bp < 80) {
     findings.push({ severity: 'good', category: 'Cardiovascular', title: 'Blood Pressure — Normal', detail: `BP ${p.systolic_bp}/${p.diastolic_bp} mmHg is within normal range.` })
@@ -217,6 +309,12 @@ function derive(p: Patient): Finding[] {
   }
   if (p.bmi != null && p.bmi >= 18.5 && p.bmi < 25) {
     findings.push({ severity: 'good', category: 'Metabolic', title: 'BMI — Healthy Range', detail: `BMI ${p.bmi} is within the normal range (18.5–24.9).` })
+  }
+  if ((p.allergies ?? []).length === 0) {
+    findings.push({ severity: 'good', category: 'Allergies', title: 'No Known Allergies', detail: 'No allergies or intolerances documented for this patient.' })
+  }
+  if (p.egfr != null && p.egfr >= 60) {
+    findings.push({ severity: 'good', category: 'Renal', title: `Renal Function — Normal (eGFR ${p.egfr})`, detail: 'eGFR ≥ 60 mL/min indicates adequate renal function.' })
   }
 
   /* Sort: critical → warning → info → good */
