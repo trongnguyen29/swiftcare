@@ -4,13 +4,13 @@ interface Props { patient: Patient }
 
 function vitalCls(val: number | null, type: string) {
   if (val == null) return ''
-  if (type === 'sbp')   return val >= 140 ? 'high' : val >= 130 ? 'warn' : 'ok'
-  if (type === 'dbp')   return val >= 90  ? 'high' : 'ok'
-  if (type === 'hr')    return val > 100 || val < 60 ? 'warn' : 'ok'
-  if (type === 'bmi')   return val >= 30  ? 'high' : val >= 25 ? 'warn' : 'ok'
-  if (type === 'chol')  return val >= 200 ? 'warn' : 'ok'
-  if (type === 'ldl')   return val >= 130 ? 'warn' : 'ok'
-  if (type === 'hba1c') return val >= 6.5 ? 'high' : val >= 5.7 ? 'warn' : 'ok'
+  if (type === 'sbp')   return val >= 130 ? 'high' : 'ok'
+  if (type === 'dbp')   return val >= 80  ? 'high' : 'ok'
+  if (type === 'hr')    return val > 100 || val < 60 ? 'high' : 'ok'
+  if (type === 'bmi')   return val >= 25  ? 'high' : 'ok'
+  if (type === 'chol')  return val >= 200 ? 'high' : 'ok'
+  if (type === 'ldl')   return val >= 130 ? 'high' : 'ok'
+  if (type === 'hba1c') return val >= 5.7 ? 'high' : 'ok'
   return ''
 }
 
@@ -77,7 +77,7 @@ export default function PatientSummary({ patient: p }: Props) {
               return (
                 <div key={v.label} className="info-field">
                   <span className="field-key">{v.label}</span>
-                  <span className={`field-val ${cls === 'ok' ? 'val-ok' : cls === 'warn' ? 'val-warn' : cls === 'high' ? 'val-high' : ''}`}>
+                  <span className={`field-val ${cls === 'ok' ? 'val-ok' : cls === 'high' ? 'val-high' : ''}`}>
                     {fmt(v.val, v.unit)}
                   </span>
                 </div>
@@ -102,7 +102,7 @@ export default function PatientSummary({ patient: p }: Props) {
               return (
                 <div key={v.label} className="info-field">
                   <span className="field-key">{v.label}</span>
-                  <span className={`field-val ${cls === 'ok' ? 'val-ok' : cls === 'warn' ? 'val-warn' : cls === 'high' ? 'val-high' : ''}`}>
+                  <span className={`field-val ${cls === 'ok' ? 'val-ok' : cls === 'high' ? 'val-high' : ''}`}>
                     {fmt(v.val, v.unit)}
                   </span>
                 </div>

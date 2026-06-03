@@ -33,8 +33,7 @@ const NORMAL: Record<string, { lo: number; hi: number }> = {
 function statusColor(key: string, val: number) {
   const n = NORMAL[key]
   if (!n) return 'var(--text-muted)'
-  if (val > n.hi) return 'var(--danger)'
-  if (val < n.lo) return 'var(--warn)'
+  if (val > n.hi || val < n.lo) return 'var(--danger)'
   return 'var(--ok)'
 }
 
