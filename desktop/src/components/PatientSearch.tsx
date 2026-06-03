@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { supabase, TABLES, normalizeRow, type Patient } from '../lib/supabase'
+import { MOCK_PATIENTS } from '../lib/mockPatients'
 
 interface Props {
   selected: Patient | null
@@ -9,12 +10,14 @@ interface Props {
 const COLS = 'ptnum,label,scc,"C-424144002","C-263495000","C-103579009","C-8480-6","C-8462-4","C-8867-4","C-39156-5","C-72166-2","C-2093-3","C-18262-6","C-2085-9","C-4548-4","C-2345-7","C-2571-8","C-186034007","C-125680007","C-398070004","C-72514-3"'
 
 export default function PatientSearch({ selected, onSelect }: Props) {
-  const [query, setQuery]     = useState('')
+  const [query, setQuery]       = useState('')
   const [patients, setPatients] = useState<Patient[]>([])
-  const [loading, setLoading] = useState(true)
-  const [filter, setFilter]   = useState<'all' | 'positive' | 'control'>('all')
+  const [loading, setLoading]   = useState(false)
+  const [filter, setFilter]     = useState<'all' | 'positive' | 'control'>('all')
+  const [source, setSource]     = useState<'mock' | 'live'>('mock')
 
-  const load = useCallback(async (q: string, f: typeof filter) => {
+  // ── Live (Supabase) fetch ──
+  const loadLive = useCallback(async (q: string, f: typeof filter) => {
     setLoading(true)
     let req = supabase.from(TABLES[0]).select(COLS).order('scc', { ascending: false }).limit(50)
     if (q.trim()) req = req.ilike('ptnum', `%${q.trim()}%`)
@@ -25,12 +28,38 @@ export default function PatientSearch({ selected, onSelect }: Props) {
     setLoading(false)
   }, [])
 
-  useEffect(() => { load(query, filter) }, [query, filter, load])
+  // ── Mock (local) filter ──
+  const loadMock = useCallback((q: string, f: typeof filter) => {
+    setPatients(MOCK_PATIENTS.filter(p => {
+      if (f === 'positive' && p.label !== 1) return false
+      if (f === 'control'  && p.label !== 0) return false
+      if (q.trim() && !p.ptnum.toLowerCase().includes(q.trim().toLowerCase())) return false
+      return true
+    }))
+  }, [])
+
+  useEffect(() => {
+    if (source === 'live') loadLive(query, filter)
+    else                   loadMock(query, filter)
+  }, [query, filter, source, loadLive, loadMock])
 
   return (
     <div className="sidebar">
       <div className="sidebar-header">
         <div className="sidebar-title">Patients</div>
+
+        {/* Source toggle */}
+        <div className="source-toggle">
+          <button
+            className={`source-btn ${source === 'mock' ? 'active' : ''}`}
+            onClick={() => setSource('mock')}
+          >Demo</button>
+          <button
+            className={`source-btn ${source === 'live' ? 'active' : ''}`}
+            onClick={() => setSource('live')}
+          >Live</button>
+        </div>
+
         <div className="filter-pills">
           {(['all', 'positive', 'control'] as const).map(f => (
             <button
@@ -55,9 +84,7 @@ export default function PatientSearch({ selected, onSelect }: Props) {
 
       <div className="patient-list">
         {loading && <div className="list-empty">Loading…</div>}
-        {!loading && patients.length === 0 && (
-          <div className="list-empty">No patients found</div>
-        )}
+        {!loading && patients.length === 0 && <div className="list-empty">No patients found</div>}
         {!loading && patients.map(p => (
           <button
             key={p.ptnum}

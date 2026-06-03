@@ -49,6 +49,9 @@ body{font-family:var(--font);background:var(--bg-page);color:var(--text-body);fo
 .sidebar{width:var(--sidebar-w);flex-shrink:0;background:var(--bg-white);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden}
 .sidebar-header{padding:14px 14px 10px;border-bottom:1px solid var(--border);flex-shrink:0}
 .sidebar-title{font-size:11px;font-weight:700;letter-spacing:.7px;text-transform:uppercase;color:var(--text-muted);margin-bottom:8px}
+.source-toggle{display:flex;background:var(--bg-subtle);border:1px solid var(--border);border-radius:8px;padding:2px;gap:2px;margin-bottom:6px}
+.source-btn{flex:1;padding:3px 10px;border:none;border-radius:6px;font-family:var(--font);font-size:11px;font-weight:600;color:var(--text-muted);background:none;cursor:pointer;transition:all .15s}
+.source-btn.active{background:var(--bg-white);color:var(--blue-600);box-shadow:var(--shadow-sm)}
 .filter-pills{display:flex;gap:4px}
 .filter-pill{padding:4px 10px;border:1px solid var(--border);border-radius:12px;background:var(--bg-subtle);color:var(--text-muted);font-family:var(--font);font-size:11px;font-weight:500;cursor:pointer;transition:all .15s}
 .filter-pill.active{background:var(--blue-600);border-color:var(--blue-600);color:#fff}
