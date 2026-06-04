@@ -7,7 +7,7 @@ use tauri::Manager;
 // ── Credentials live in the Rust binary, not the JS bundle ──
 const SUPABASE_URL:     &str = "https://ujqrxhhshxgqqjkblorh.supabase.co";
 const SUPABASE_KEY:     &str = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVqcXJ4aGhzaHhncXFqa2Jsb3JoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk4MDU3NjAsImV4cCI6MjA5NTM4MTc2MH0.t4CgUYE5oPLhocC2YtRF-WW6tMWu2Cvd0mYB_A1jWhk";
-const OPENAI_API_KEY: &str = "REDACTED";
+const OPENAI_API_KEY: &str = env!("OPENAI_API_KEY");
 const OPENAI_MODEL:   &str = "gpt-4o-mini"; // swap to hospital endpoint/model here
 const TABLE: &str = "synthea_pt30k_lc_data_sel_convert";
 const COLS: &str = r#"ptnum,label,scc,"C-424144002","C-263495000","C-103579009","C-8480-6","C-8462-4","C-8867-4","C-39156-5","C-72166-2","C-2093-3","C-18262-6","C-2085-9","C-4548-4","C-2345-7","C-2571-8","C-186034007","C-125680007","C-398070004","C-72514-3""#;
@@ -79,7 +79,10 @@ async fn transcribe_audio(
     let form = multipart::Form::new()
         .part("file", file_part)
         .text("model", "whisper-1")
-        .text("prompt", format!("Patient ID: {}. Medical consultation.", patient_id));
+        .text("prompt", format!(
+            "Clinical encounter for patient {}. This recording contains medical terminology: diagnoses, medications, dosages, vital signs, lab values, and anatomical terms. Expected vocabulary includes: lung cancer, SCC score, hypertension, HbA1c, systolic, diastolic, metformin, atorvastatin, lisinopril, COPD, spirometry, oncology, chemotherapy, imaging, CT scan, PET scan, biopsy, staging, remission.",
+            patient_id
+        ));
 
     let res = reqwest::Client::new()
         .post("https://api.openai.com/v1/audio/transcriptions")
@@ -157,8 +160,36 @@ async fn summarize_transcript(
     transcript: String,
     patient_context: String,
 ) -> Result<String, String> {
+    let system = "\
+You are a board-certified clinical documentation specialist generating SOAP progress notes from physician visit transcripts for an EHR system.
+
+ABSOLUTE RULES:
+- Document ONLY what is explicitly stated or clearly implied in the transcript
+- OBJECTIVE section: include only vitals/exam findings mentioned in the visit — do not copy the entire patient record
+- Never fabricate symptoms, diagnoses, medications, or examination findings
+- If the transcript is unclear, too brief, or does not represent a clinical encounter, state this clearly before the note
+- Use hedged diagnostic language: \"consistent with,\" \"suggestive of,\" \"rule out\" — never definitive diagnoses
+- End every note with the required physician attestation line
+
+OUTPUT FORMAT — use these exact bold headers with a blank line between sections:
+
+**SUBJECTIVE**
+Chief complaint in the patient's own words. HPI covering: onset, duration, severity, character, associated symptoms, aggravating/relieving factors, pertinent negatives mentioned in the visit.
+
+**OBJECTIVE**
+Vitals and physical examination findings discussed during the visit. Reference patient record data only if it was explicitly reviewed or mentioned.
+
+**ASSESSMENT**
+Clinical impression. Lead with the primary concern. Address oncology status explicitly for LC+ patients. Use hedged diagnostic language throughout.
+
+**PLAN**
+Numbered list of all treatments, medication changes, referrals, orders, patient education, and follow-up timing discussed.
+
+---
+⚠ AI-GENERATED DRAFT — Requires physician review, editing, and attestation before filing.";
+
     let user_prompt = format!(
-        "Generate a concise SOAP clinical note from the following visit transcript.\n\nPATIENT CONTEXT:\n{}\n\nVISIT TRANSCRIPT:\n{}\n\nFormat with clearly labeled sections: Subjective, Objective, Assessment, and Plan. Be concise, use standard medical terminology. Only include Objective findings mentioned in the transcript or confirmed in the patient record.",
+        "PATIENT RECORD (use only what was discussed in the visit):\n{}\n\nVISIT TRANSCRIPT:\n{}",
         patient_context, transcript
     );
 
@@ -167,9 +198,9 @@ async fn summarize_transcript(
         .header("Authorization", format!("Bearer {}", OPENAI_API_KEY))
         .json(&serde_json::json!({
             "model": OPENAI_MODEL,
-            "max_tokens": 800,
+            "max_tokens": 1000,
             "messages": [
-                { "role": "system", "content": "You are a clinical documentation assistant in an EHR system. Generate accurate, concise SOAP notes from visit transcripts. Use standard medical abbreviations. Flag that physician review is required." },
+                { "role": "system", "content": system },
                 { "role": "user",   "content": user_prompt }
             ]
         }))
@@ -192,7 +223,7 @@ async fn chat_with_patient_context(
     patient_context: String,
 ) -> Result<String, String> {
     let system = format!(
-        "You are a clinical AI assistant embedded in SwiftCare EHR. You have access to the following patient record and help clinicians with differential diagnoses, treatment considerations, drug interactions, care gaps, and evidence-based guidelines.\n\nRules:\n- Decision-support only. Always remind clinicians to apply professional judgment.\n- Never make definitive diagnoses — use \"consider,\" \"may suggest,\" \"consistent with.\"\n- Be concise and clinically focused. Use bullet points when listing items.\n\n{}",
+        "You are a clinical decision support AI embedded at the point of care in SwiftCare EHR. You assist physicians with evidence-based clinical reasoning during patient encounters.\n\nPATIENT RECORD:\n{}\n\nCORE CAPABILITIES:\n• Differential diagnosis support with likelihood ranking\n• Drug interaction and contraindication checking against this patient's active medications\n• Care gap identification based on age, diagnoses, risk factors, and guidelines\n• Lab and vital sign interpretation in this patient's specific clinical context\n• Evidence-based guideline retrieval (ACC/AHA, NCCN, ADA, USPSTF, and others)\n• Treatment option comparison with patient-specific contraindications flagged\n\nRESPONSE RULES:\n1. Frame every response as decision support — the clinician makes the final call\n2. Always cite this patient's specific values when relevant (e.g., \"given this patient's eGFR of X...\")\n3. Use hedged diagnostic language: \"consider,\" \"may suggest,\" \"consistent with,\" \"rule out\"\n4. For LC+ patients, integrate oncology context into every recommendation\n5. Lead with the most important point — clinicians are time-constrained\n6. Use bullet points for lists; prose for explanations\n7. PROACTIVE SAFETY: If you identify a critical issue not asked about — dangerous drug interaction, critical lab value, urgent vital sign — append it at the end under: \"⚠ Unsolicited Flag:\"\n8. If a question falls outside clinical scope, redirect to what the patient record can inform",
         patient_context
     );
 
@@ -228,9 +259,29 @@ async fn generate_cohort_insights(stats_json: String) -> Result<String, String> 
     let stats: serde_json::Value =
         serde_json::from_str(&stats_json).map_err(|e| format!("Invalid stats JSON: {}", e))?;
 
+    let total   = stats["total"].as_u64().unwrap_or(0);
+    let pos     = stats["pos"].as_u64().unwrap_or(0);
+    let neg     = stats["neg"].as_u64().unwrap_or(0);
+    let avg_age = stats["avgAge"].as_f64().unwrap_or(0.0);
+    let avg_bmi = stats["avgBmi"].as_f64().unwrap_or(0.0);
+    let avg_scc = stats["avgScc"].as_f64().unwrap_or(0.0);
+    let prevalence = if total > 0 { (pos as f64 / total as f64 * 100.0) } else { 0.0 };
+
+    let sys_bp  = stats["vitals"]["avg_systolic"].as_f64().unwrap_or(0.0);
+    let dia_bp  = stats["vitals"]["avg_diastolic"].as_f64().unwrap_or(0.0);
+    let chol    = stats["vitals"]["avg_chol"].as_f64().unwrap_or(0.0);
+    let hba1c   = stats["vitals"]["avg_hba1c"].as_f64().unwrap_or(0.0);
+
+    let system_msg = "You are a clinical epidemiologist and population health expert reviewing a synthetic lung cancer research cohort. Your analysis is read by clinical researchers and hospital administrators who make screening and resource allocation decisions.\n\nProduce insights that are analytical, not merely descriptive. Every insight must lead with clinical or public health significance — not a raw statistic. Distinguish what the data shows from what it implies clinically. Flag anything unexpected or counter-intuitive.";
+
     let prompt = format!(
-        "Analyze this lung cancer research cohort and provide exactly 5 evidence-based clinical insights numbered 1–5 (1–3 sentences each). Cite specific numbers from the data.\n\nCOHORT DATA:\n{}",
-        serde_json::to_string_pretty(&stats).unwrap_or_default()
+        "Analyze this lung cancer research cohort. Produce exactly 5 numbered insights (1–5), each 2–3 sentences.\n\nRequired topics — one insight each:\n1. Disease burden: what a {:.1}% LC prevalence ({} positive / {} total) means for this population\n2. Tobacco risk stratification: interpret the differential LC rates between former and never smokers, and what it means for screening\n3. Age distribution and screening implications given the cohort's mean age of {:.1} years\n4. Cardiovascular/metabolic comorbidity profile: interpret BP ({:.0}/{:.0} mmHg), cholesterol ({:.0} mg/dL), HbA1c ({:.1}%), and BMI ({:.1}) in an oncology population\n5. One specific, evidence-grounded population health or screening protocol recommendation derived from the data patterns\n\nCOHORT SUMMARY:\n- Total: {} patients | LC Positive: {} ({:.1}%) | Control: {}\n- Mean age {:.1}y | Mean BMI {:.1} | Mean SCC score {:.1}\n- Avg vitals: SBP {:.0} | DBP {:.0} | Chol {:.0} mg/dL | HbA1c {:.1}%",
+        prevalence, pos, total,
+        avg_age,
+        sys_bp, dia_bp, chol, hba1c, avg_bmi,
+        total, pos, prevalence, neg,
+        avg_age, avg_bmi, avg_scc,
+        sys_bp, dia_bp, chol, hba1c
     );
 
     let res = reqwest::Client::new()
@@ -238,9 +289,9 @@ async fn generate_cohort_insights(stats_json: String) -> Result<String, String> 
         .header("Authorization", format!("Bearer {}", OPENAI_API_KEY))
         .json(&serde_json::json!({
             "model": OPENAI_MODEL,
-            "max_tokens": 900,
+            "max_tokens": 1000,
             "messages": [
-                { "role": "system", "content": "You are a clinical data scientist specializing in population health and oncology research. Provide numbered, concise, evidence-based insights. Always cite specific numbers." },
+                { "role": "system", "content": system_msg },
                 { "role": "user",   "content": prompt }
             ]
         }))

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import PatientSearch from './components/PatientSearch'
 import PatientSummary from './components/PatientSummary'
 import PatientCharts from './components/PatientCharts'
@@ -14,6 +14,7 @@ export default function App() {
   const [selected,   setSelected]   = useState<Patient | null>(null)
   const [transcript, setTranscript] = useState('')
   const [activeTab,  setActiveTab]  = useState<PatientTab>('overview')
+  const overviewCache = useRef<Map<string, string>>(new Map())
 
   function selectPatient(p: Patient) {
     setSelected(p)
@@ -120,7 +121,14 @@ export default function App() {
 
               {/* ── Tab content ── */}
               <div className="pt-tab-content">
-                {activeTab === 'overview' && <PatientSummary patient={selected} section="overview" />}
+                {activeTab === 'overview' && (
+                  <PatientSummary
+                    patient={selected}
+                    section="overview"
+                    cachedOverview={overviewCache.current.get(selected.ptnum)}
+                    onOverviewGenerated={text => overviewCache.current.set(selected.ptnum, text)}
+                  />
+                )}
                 {activeTab === 'ai'       && <AIInsights patient={selected} />}
                 {activeTab === 'history'  && <PatientSummary patient={selected} section="history" />}
                 {activeTab === 'charts'   && <PatientCharts patient={selected} />}
