@@ -1,42 +1,85 @@
 // Supabase credentials and queries are handled by the Rust backend (src-tauri/src/lib.rs).
 // This file contains only types and the column-code normaliser used by api.ts.
 
-export const CODE_MAP: Record<string, string> = {
-  'C-424144002': 'age',
-  'C-263495000': 'gender',
-  'C-103579009': 'race',
-  'C-186034007': 'ethnicity',
-  'C-125680007': 'marital',
-  'C-398070004': 'state',
-  'C-8480-6':    'systolic_bp',
-  'C-8462-4':    'diastolic_bp',
-  'C-8867-4':    'heart_rate',
-  'C-39156-5':   'bmi',
-  'C-72166-2':   'tobacco_status',
-  'C-72514-3':   'pain_score',
-  'C-2093-3':    'total_cholesterol',
-  'C-18262-6':   'ldl',
-  'C-2085-9':    'hdl',
-  'C-2571-8':    'triglycerides',
-  'C-4548-4':    'hba1c',
-  'C-2345-7':    'glucose',
+function num(v: unknown): number | null {
+  if (v == null) return null
+  const n = Number(v)
+  return isNaN(n) ? null : n
 }
 
 export function normalizeRow(row: Record<string, unknown>): Patient {
-  const p: Record<string, unknown> = {
-    ptnum:  row['ptnum'],
-    label:  Number(row['label']),
-    scc:    row['scc'] != null ? Number(row['scc']) : null,
-    _table: row['_table'],
-  }
-  for (const [code, name] of Object.entries(CODE_MAP)) {
-    const v = row[code]
-    if (v == null) { p[name] = null; continue }
-    const numeric = Number(v)
-    // Keep numeric values; discard non-numeric strings (e.g. "normal"/"abnormal") as null
-    p[name] = (!isNaN(numeric) && String(v).trim() !== '') ? numeric : null
-  }
-  return p as unknown as Patient
+  return {
+    ptnum:              String(row['ptnum'] ?? ''),
+    label:              Number(row['label'] ?? 0),
+    scc:                num(row['scc']),
+    first_name:         (row['first_name']  as string) ?? null,
+    last_name:          (row['last_name']   as string) ?? null,
+    age:                num(row['age']),
+    administrative_sex: (row['administrative_sex'] as string) ?? null,
+    race:               (row['race']        as string) ?? null,
+    ethnicity:          (row['ethnicity']   as string) ?? null,
+    state:              (row['state']       as string) ?? null,
+    systolic_bp:        num(row['systolic_bp']),
+    diastolic_bp:       num(row['diastolic_bp']),
+    heart_rate:         num(row['heart_rate']),
+    bmi:                num(row['bmi']),
+    total_cholesterol:  num(row['total_cholesterol']),
+    ldl:                num(row['ldl']),
+    hdl:                num(row['hdl']),
+    triglycerides:      num(row['triglycerides']),
+    hba1c:              num(row['hba1c']),
+    glucose:            num(row['glucose']),
+    creatinine:         num(row['creatinine']),
+    egfr:               num(row['egfr']),
+    hemoglobin:         num(row['hemoglobin']),
+    wbc:                num(row['wbc']),
+    platelets:          num(row['platelets']),
+    problems:           (row['problems']    as any[]) ?? [],
+    medications:        [],
+    allergies:          [],
+    immunizations:      [],
+    procedures:         [],
+    care_team:          [],
+    encounters:         [],
+    clinical_notes:     [],
+    goals:              [],
+    imaging_results:    [],
+    insurance:          null,
+    tobacco_status:     null,
+    gender:             null,
+    marital:            null,
+    middle_name:        null,
+    date_of_birth:      null,
+    birth_sex:          null,
+    gender_identity:    null,
+    preferred_language: null,
+    tribal_affiliation: null,
+    address_line:       null,
+    city:               null,
+    zip_code:           null,
+    phone:              null,
+    email:              null,
+    respiratory_rate:   null,
+    temperature_c:      null,
+    oxygen_saturation:  null,
+    height_cm:          null,
+    weight_kg:          null,
+    pain_score:         null,
+    functional_status:  null,
+    mental_cognitive_status: null,
+    disability_status:  null,
+    pregnancy_status:   null,
+    sdoh_education_level:          null,
+    sdoh_financial_strain:         null,
+    sdoh_housing_status:           null,
+    sdoh_transportation_insecurity: null,
+    sdoh_veteran_status:           null,
+    sdoh_social_isolation:         null,
+    assessment_plan:    null,
+    provenance_author:  null,
+    provenance_organization: null,
+    provenance_timestamp: null,
+  } as Patient
 }
 
 /* ─────────────────────────────────────────────

@@ -13,15 +13,18 @@ export default function PatientSearch({ selected, onSelect }: Props) {
   const [loading, setLoading]   = useState(false)
   const [filter, setFilter]     = useState<'all' | 'positive' | 'control'>('all')
   const [source, setSource]     = useState<'mock' | 'live'>('mock')
+  const [error,  setError]      = useState<string | null>(null)
 
   // ── Live fetch via Rust → Supabase ──
   const loadLive = useCallback(async (q: string, f: typeof filter) => {
     setLoading(true)
+    setError(null)
     try {
       const data = await queryPatients(q, f)
       setPatients(data)
-    } catch {
+    } catch (e: unknown) {
       setPatients([])
+      setError(e instanceof Error ? e.message : String(e))
     } finally {
       setLoading(false)
     }
@@ -83,7 +86,8 @@ export default function PatientSearch({ selected, onSelect }: Props) {
 
       <div className="patient-list">
         {loading && <div className="list-empty">Loading…</div>}
-        {!loading && patients.length === 0 && <div className="list-empty">No patients found</div>}
+        {!loading && error && <div className="list-empty" style={{ color: 'var(--danger)', fontSize: 11, padding: 12 }}>⚠ {error}</div>}
+        {!loading && !error && patients.length === 0 && <div className="list-empty">No patients found</div>}
         {!loading && patients.map(p => (
           <button
             key={p.ptnum}

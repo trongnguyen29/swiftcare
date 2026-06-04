@@ -12,8 +12,8 @@ const SUPABASE_KEY:   &str = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzd
 const OPENAI_API_KEY: Option<&str> = option_env!("OPENAI_API_KEY");
 const WORKER_URL:     &str = "https://swiftcare.tnn-040.workers.dev";
 
-const TABLE: &str = "synthea_pt30k_lc_data_sel_convert";
-const COLS:  &str = r#"ptnum,label,scc,"C-424144002","C-263495000","C-103579009","C-8480-6","C-8462-4","C-8867-4","C-39156-5","C-72166-2","C-2093-3","C-18262-6","C-2085-9","C-4548-4","C-2345-7","C-2571-8","C-186034007","C-125680007","C-398070004","C-72514-3""#;
+const TABLE: &str = "patient_summary";
+const COLS:  &str = "ptnum,label,scc,first_name,last_name,age,administrative_sex,race,ethnicity,state,systolic_bp,diastolic_bp,heart_rate,bmi,total_cholesterol,ldl,hdl,triglycerides,hba1c,glucose,creatinine,egfr,hemoglobin,wbc,platelets,problems";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 fn data_dir(app: &tauri::AppHandle) -> Result<std::path::PathBuf, String> {
@@ -28,7 +28,7 @@ fn data_dir(app: &tauri::AppHandle) -> Result<std::path::PathBuf, String> {
 async fn query_patients(query: String, filter: String) -> Result<Vec<serde_json::Value>, String> {
     let mut params: Vec<(&str, String)> = vec![
         ("select", COLS.to_string()),
-        ("order",  "scc.desc".to_string()),
+        ("order",  "age.desc".to_string()),
         ("limit",  "50".to_string()),
     ];
     if !query.trim().is_empty() {
