@@ -53,6 +53,36 @@ const CORS = {
   'Access-Control-Allow-Headers': 'Content-Type',
 }
 
+const COHORT_SYSTEM = `You are a clinical epidemiologist and population health expert reviewing a synthetic lung cancer research cohort. Your analysis is read by clinical researchers and hospital administrators who make screening and resource decisions.
+
+Produce insights that are analytical, not merely descriptive. Every insight must:
+- Lead with clinical or public health significance — not a raw statistic
+- Include specific numbers with denominator context (e.g., "34.8% of 9,317 former smokers")
+- Distinguish what the data shows from what it implies clinically
+- Be actionable or hypothesis-generating where possible
+
+Flag anything that is unexpected, counter-intuitive, or that contradicts conventional clinical assumptions.`
+
+const COHORT_USER_PROMPT = (s: StatsPayload) => {
+  const prevalence = ((s.pos / s.total) * 100).toFixed(1)
+  const former = s.tobaccoCancer.find(t => t.status === 'Former Smoker')
+  const never  = s.tobaccoCancer.find(t => t.status === 'Never Smoked')
+  const formerTotal = former ? former.positive + former.negative : 0
+  const neverTotal  = never  ? never.positive  + never.negative  : 0
+  const formerRate  = formerTotal > 0 ? ((former!.positive / formerTotal) * 100).toFixed(1) : '—'
+  const neverRate   = neverTotal  > 0 ? ((never!.positive  / neverTotal)  * 100).toFixed(1) : '—'
+  const peakAge = s.ageDist.reduce((b, c) => c.positive > b.positive ? c : b, s.ageDist[0])
+
+  return `Analyze this lung cancer research cohort. Produce exactly 5 numbered insights (1–5), each 2–3 sentences.
+
+Required topics — one insight each:
+1. Disease burden: what a ${prevalence}% LC prevalence means for this population and how it compares to real-world expectations
+2. Tobacco risk stratification: former smoker LC rate (${formerRate}% of ${formerTotal.toLocaleString()}) vs never-smoker rate (${neverRate}% of ${neverTotal.toLocaleString()}) — quantify the differential and its screening implications
+3. Age distribution: the age-${peakAge?.age ?? '60–70'} peak (${peakAge?.positive?.toLocaleString()} cases) and what this means for screening eligibility thresholds
+4. Cardiovascular and metabolic comorbidity profile: interpret the BP (${s.vitals.avg_systolic}/${s.vitals.avg_diastolic} mmHg), cholesterol (${s.vitals.avg_chol} mg/dL), and HbA1c (${s.vitals.avg_hba1c}%) averages in the context of an oncology population
+5. One specific, evidence-grounded population health or screening protocol recommendation derived from patterns in this data`
+}
+
 async function callOpenAI(
   apiKey: string,
   system: string,
@@ -104,8 +134,9 @@ export default {
       const stats = await request.json() as StatsPayload
       const result = await callOpenAI(
         env.OPENAI_API_KEY,
-        'You are a clinical data scientist specializing in population health and oncology research. Provide numbered, concise, evidence-based insights. Always cite specific numbers from the data provided.',
-        buildInsightPrompt(stats),
+        COHORT_SYSTEM,
+        COHORT_USER_PROMPT(stats),
+        1000,
       )
       if (!result.ok) {
         return Response.json({ error: result.text }, { status: result.status, headers: CORS })

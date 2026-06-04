@@ -3,7 +3,12 @@ import { chatWithPatientContext } from '../lib/api'
 import { buildPatientContext } from '../lib/patientContext'
 import type { Patient } from '../lib/supabase'
 
-interface Props { patient: Patient; section?: 'overview' | 'history' }
+interface Props {
+  patient: Patient
+  section?: 'overview' | 'history'
+  cachedOverview?: string
+  onOverviewGenerated?: (text: string) => void
+}
 
 function vitalCls(val: number | null, type: string) {
   if (val == null) return ''
@@ -27,21 +32,34 @@ const SEV_COLOR: Record<string, string> = {
   mild: 'var(--warn)', moderate: 'var(--warn)', severe: 'var(--danger)',
 }
 
-export default function PatientSummary({ patient: p, section }: Props) {
-  const [aiOverview, setAiOverview]   = useState<string | null>(null)
+export default function PatientSummary({ patient: p, section, cachedOverview, onOverviewGenerated }: Props) {
+  const [aiOverview, setAiOverview]   = useState<string | null>(cachedOverview ?? null)
   const [aiLoading,  setAiLoading]    = useState(false)
   const [aiError,    setAiError]      = useState<string | null>(null)
-  const [generated,  setGenerated]    = useState(false)
+  const [generated,  setGenerated]    = useState(!!cachedOverview)
 
   async function generateOverview() {
     setAiLoading(true); setAiError(null)
     try {
       const reply = await chatWithPatientContext(
-        [{ role: 'user', content: 'Provide a concise 3–4 sentence clinical overview of this patient for a clinician reviewing the record. Cover: diagnosis status and SCC score, key risk factors and comorbidities, the most significant lab or vital abnormality, and one priority clinical recommendation. Prose only — no headers or bullet points.' }],
+        [{ role: 'user', content: `Write a clinical handoff brief for a physician seeing this patient for the first time today. They have 60 seconds to read it before entering the room.
+
+Write exactly 3 sentences in this order:
+1. THE MOST URGENT CONCERN: The single most critical clinical fact right now. If LC+, lead with diagnosis status and SCC score. If not LC+, lead with the most dangerous risk factor or abnormal value.
+2. CLINICAL CONTEXT: The 2–3 most important comorbidities, active conditions, or risk factors shaping clinical decisions — include specific values (e.g., "HbA1c 7.4%", "BMI 34", "SBP 148 mmHg").
+3. PRIORITY ACTION: One specific, actionable instruction — what the clinician must do or verify in this visit.
+
+STRICT RULES:
+- Use actual numbers from the record — do not be vague
+- Physician-level clinical language — not patient-facing
+- No hedging ("it appears", "may be") — be direct and assertive
+- No headers, no bullets — three sentences of flowing prose only
+- Under 90 words total` }],
         buildPatientContext(p),
       )
       setAiOverview(reply)
       setGenerated(true)
+      onOverviewGenerated?.(reply)
     } catch (e: unknown) {
       setAiError(e instanceof Error ? e.message : 'Failed to generate overview')
     } finally {
