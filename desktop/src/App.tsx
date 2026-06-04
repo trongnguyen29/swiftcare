@@ -1,5 +1,4 @@
-import { useState, useEffect } from 'react'
-import { getApiKey, setApiKey as persistApiKey } from './lib/api'
+import { useState } from 'react'
 import PatientSearch from './components/PatientSearch'
 import PatientSummary from './components/PatientSummary'
 import PatientCharts from './components/PatientCharts'
@@ -12,20 +11,9 @@ import './App.css'
 type PatientTab = 'overview' | 'ai' | 'history' | 'charts' | 'visit'
 
 export default function App() {
-  const [selected,     setSelected]     = useState<Patient | null>(null)
-  const [transcript,   setTranscript]   = useState('')
-  const [apiKey,       setApiKey]       = useState('')
-  const [showSettings, setShowSettings] = useState(false)
-  const [activeTab,    setActiveTab]    = useState<PatientTab>('overview')
-
-  useEffect(() => {
-    getApiKey().then(k => { if (k) setApiKey(k) }).catch(() => {})
-  }, [])
-
-  function handleApiKey(k: string) {
-    setApiKey(k)
-    persistApiKey(k).catch(() => {})
-  }
+  const [selected,   setSelected]   = useState<Patient | null>(null)
+  const [transcript, setTranscript] = useState('')
+  const [activeTab,  setActiveTab]  = useState<PatientTab>('overview')
 
   function selectPatient(p: Patient) {
     setSelected(p)
@@ -33,16 +21,16 @@ export default function App() {
     setActiveTab('overview')
   }
 
-  const isLC      = selected?.label === 1
-  const name      = selected ? [selected.first_name, selected.last_name].filter(Boolean).join(' ') || selected.ptnum : ''
-  const subline   = selected ? [selected.age ? `${selected.age}y` : null, selected.administrative_sex, selected.race].filter(Boolean).join(' · ') : ''
+  const isLC    = selected?.label === 1
+  const name    = selected ? [selected.first_name, selected.last_name].filter(Boolean).join(' ') || selected.ptnum : ''
+  const subline = selected ? [selected.age ? `${selected.age}y` : null, selected.administrative_sex, selected.race].filter(Boolean).join(' · ') : ''
 
   const TABS: { id: PatientTab; label: string; icon: string }[] = [
-    { id: 'overview',  label: 'Overview',    icon: '⊡' },
-    { id: 'ai',        label: 'AI Insights', icon: '✦' },
-    { id: 'history',   label: 'History',     icon: '📋' },
-    { id: 'charts',    label: 'Charts',      icon: '📊' },
-    { id: 'visit',     label: 'Visit',       icon: '🎙' },
+    { id: 'overview', label: 'Overview',    icon: '⊡' },
+    { id: 'ai',       label: 'AI Insights', icon: '✦' },
+    { id: 'history',  label: 'History',     icon: '📋' },
+    { id: 'charts',   label: 'Charts',      icon: '📊' },
+    { id: 'visit',    label: 'Visit',       icon: '🎙' },
   ]
 
   return (
@@ -68,31 +56,14 @@ export default function App() {
         <span className="header-subtitle">EHR Visit Assistant</span>
         <div className="header-spacer" />
         {selected && (
-          <div className="dr-chip" style={{ marginRight: 8 }}>
+          <div className="dr-chip">
             <span style={{ fontFamily: 'var(--mono)', fontSize: 11 }}>{selected.ptnum}</span>
             <span className={`badge ${isLC ? 'badge-danger' : 'badge-ok'}`} style={{ fontSize: 10 }}>
               {isLC ? 'LC+' : 'Ctrl'}
             </span>
           </div>
         )}
-        <button className="settings-btn" onClick={() => setShowSettings(s => !s)}>
-          {showSettings ? 'Close' : 'Settings'}
-        </button>
       </header>
-
-      {showSettings && (
-        <div className="settings-bar">
-          <label className="settings-label">OpenAI API Key (Whisper transcription)</label>
-          <input
-            type="password"
-            className="settings-input"
-            placeholder="sk-..."
-            value={apiKey}
-            onChange={e => handleApiKey(e.target.value)}
-          />
-          <button className="btn-ghost" onClick={() => setShowSettings(false)}>Done</button>
-        </div>
-      )}
 
       <div className="body-layout">
         <PatientSearch selected={selected} onSelect={selectPatient} />
@@ -108,7 +79,7 @@ export default function App() {
             </div>
           ) : (
             <>
-              {/* ── Patient strip — always visible ── */}
+              {/* ── Patient strip ── */}
               <div className="pt-strip">
                 <div className="pt-strip-avatar">
                   {selected.administrative_sex === 'Male' ? '♂' : selected.administrative_sex === 'Female' ? '♀' : '⊕'}
@@ -149,30 +120,14 @@ export default function App() {
 
               {/* ── Tab content ── */}
               <div className="pt-tab-content">
-                {activeTab === 'overview' && (
-                  <PatientSummary patient={selected} section="overview" />
-                )}
-                {activeTab === 'ai' && (
-                  <AIInsights patient={selected} />
-                )}
-                {activeTab === 'history' && (
-                  <PatientSummary patient={selected} section="history" />
-                )}
-                {activeTab === 'charts' && (
-                  <PatientCharts patient={selected} />
-                )}
-                {activeTab === 'visit' && (
+                {activeTab === 'overview' && <PatientSummary patient={selected} section="overview" />}
+                {activeTab === 'ai'       && <AIInsights patient={selected} />}
+                {activeTab === 'history'  && <PatientSummary patient={selected} section="history" />}
+                {activeTab === 'charts'   && <PatientCharts patient={selected} />}
+                {activeTab === 'visit'    && (
                   <>
-                    <VoiceRecorder
-                      patientId={selected.ptnum}
-                      onTranscript={setTranscript}
-                      apiKey={apiKey}
-                    />
-                    <TranscriptPanel
-                      patientId={selected.ptnum}
-                      transcript={transcript}
-                      onClear={() => setTranscript('')}
-                    />
+                    <VoiceRecorder patientId={selected.ptnum} onTranscript={setTranscript} />
+                    <TranscriptPanel patient={selected} transcript={transcript} onClear={() => setTranscript('')} />
                   </>
                 )}
               </div>

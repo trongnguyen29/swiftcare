@@ -83,10 +83,39 @@ function buildStats(rows: Patient[]): Stats {
 }
 
 export default function CohortTab() {
-  const [stats,    setStats]    = useState<Stats | null>(null)
-  const [loading,  setLoading]  = useState(true)
-  const [progress, setProgress] = useState(0)
-  const [error,    setError]    = useState<string | null>(null)
+  const [stats,       setStats]       = useState<Stats | null>(null)
+  const [loading,     setLoading]     = useState(true)
+  const [progress,    setProgress]    = useState(0)
+  const [error,       setError]       = useState<string | null>(null)
+  const [aiInsights,  setAiInsights]  = useState<string | null>(null)
+  const [aiLoading,   setAiLoading]   = useState(false)
+  const [aiError,     setAiError]     = useState<string | null>(null)
+  const [aiGenerated, setAiGenerated] = useState(false)
+
+  async function generateInsights(s: Stats) {
+    setAiLoading(true); setAiError(null)
+    try {
+      const res = await fetch('/api/cohort-insights', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          total: s.total, pos: s.pos, neg: s.neg,
+          avgAge: s.avgAge, avgBmi: s.avgBmi, avgScc: s.avgScc,
+          vitals: s.vitals,
+          tobaccoCancer: s.tobaccoCancer,
+          ageDist: s.ageDist,
+        }),
+      })
+      const data = await res.json() as { insights?: string; error?: string }
+      if (!res.ok) throw new Error(data.error ?? `HTTP ${res.status}`)
+      setAiInsights(data.insights ?? '')
+      setAiGenerated(true)
+    } catch (e: unknown) {
+      setAiError(e instanceof Error ? e.message : 'Failed to generate insights')
+    } finally {
+      setAiLoading(false)
+    }
+  }
 
   useEffect(() => {
     async function load() {
@@ -299,6 +328,74 @@ export default function CohortTab() {
             </div>
           </div>
         ))}
+      </div>
+
+      {/* AI Cohort Insights */}
+      <div className="card">
+        <div className="card-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ background: 'var(--blue-600)', color: '#fff', fontSize: 9, fontWeight: 700, padding: '2px 6px', borderRadius: 4, letterSpacing: '.5px', textTransform: 'uppercase' }}>AI</span>
+            <span className="card-title">Cohort AI Insights</span>
+            <span style={{ fontSize: 11, color: 'var(--text-faint)' }}>powered by Claude</span>
+          </div>
+          <button
+            onClick={() => generateInsights(stats)}
+            disabled={aiLoading}
+            style={{
+              padding: '6px 14px', fontSize: 12, fontWeight: 600, borderRadius: 8, cursor: aiLoading ? 'not-allowed' : 'pointer',
+              background: aiLoading ? 'var(--bg-muted)' : 'var(--blue-600)', color: aiLoading ? 'var(--text-faint)' : '#fff',
+              border: 'none', transition: 'background .15s',
+            }}
+          >
+            {aiLoading ? 'Analyzing…' : aiGenerated ? 'Regenerate' : '✦ Generate Insights'}
+          </button>
+        </div>
+
+        {aiError && (
+          <div style={{ margin: '0 20px 16px', background: 'var(--danger-bg)', border: '1px solid var(--danger-bdr)', borderRadius: 8, padding: '10px 14px', fontSize: 12, color: 'var(--danger)' }}>
+            ⚠ {aiError}
+          </div>
+        )}
+
+        {aiLoading && (
+          <div style={{ padding: '28px 20px', textAlign: 'center', color: 'var(--text-faint)', fontSize: 13 }}>
+            <div style={{ fontSize: 24, marginBottom: 8 }}>✦</div>
+            Analyzing {stats.total.toLocaleString()} patients with Claude…
+          </div>
+        )}
+
+        {aiInsights && !aiLoading && (
+          <div style={{ padding: '4px 20px 20px' }}>
+            {aiInsights.split('\n').filter(l => l.trim()).map((line, i) => {
+              const isNumbered = /^\d+[\.\)]/.test(line.trim())
+              return (
+                <div key={i} style={{
+                  display: 'flex', gap: 10, padding: '10px 0',
+                  borderBottom: i < aiInsights.split('\n').filter(l => l.trim()).length - 1 ? '1px solid var(--border)' : 'none',
+                }}>
+                  {isNumbered && (
+                    <span style={{ flexShrink: 0, width: 22, height: 22, borderRadius: '50%', background: 'var(--blue-600)', color: '#fff', fontSize: 10, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', marginTop: 1 }}>
+                      {line.trim().match(/^\d+/)?.[0]}
+                    </span>
+                  )}
+                  <p style={{ margin: 0, fontSize: 13, lineHeight: 1.6, color: 'var(--text-body)' }}>
+                    {isNumbered ? line.trim().replace(/^\d+[\.\)]\s*/, '') : line.trim()}
+                  </p>
+                </div>
+              )
+            })}
+            <div style={{ marginTop: 14, fontSize: 10, color: 'var(--text-faint)', borderTop: '1px solid var(--border)', paddingTop: 10 }}>
+              AI-generated insights from cohort statistics. For research and decision-support purposes only.
+            </div>
+          </div>
+        )}
+
+        {!aiInsights && !aiLoading && !aiError && (
+          <div style={{ padding: '28px 20px', textAlign: 'center', color: 'var(--text-faint)', fontSize: 13 }}>
+            <div style={{ fontSize: 28, marginBottom: 8, opacity: .4 }}>✦</div>
+            Click <strong style={{ color: 'var(--text-muted)' }}>Generate Insights</strong> to analyze this cohort with Claude AI.
+          </div>
+        )}
       </div>
     </div>
   )

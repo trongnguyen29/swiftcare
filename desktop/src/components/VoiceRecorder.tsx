@@ -6,10 +6,9 @@ type Status = 'idle' | 'recording' | 'transcribing' | 'done' | 'error'
 interface Props {
   patientId: string | null
   onTranscript: (text: string) => void
-  apiKey: string
 }
 
-export default function VoiceRecorder({ patientId, onTranscript, apiKey }: Props) {
+export default function VoiceRecorder({ patientId, onTranscript }: Props) {
   const [status, setStatus]     = useState<Status>('idle')
   const [duration, setDuration] = useState(0)
   const [error, setError]       = useState<string | null>(null)
@@ -64,10 +63,6 @@ export default function VoiceRecorder({ patientId, onTranscript, apiKey }: Props
   }, [drawFlat])
 
   async function startRecording() {
-    if (!apiKey.trim()) {
-      setError('Enter your OpenAI API key in Settings first')
-      return
-    }
     setError(null)
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
@@ -109,7 +104,7 @@ export default function VoiceRecorder({ patientId, onTranscript, apiKey }: Props
       const blob = new Blob(chunksRef.current, { type: mr.mimeType || 'audio/webm' })
       mr.stream.getTracks().forEach(t => t.stop())
       try {
-        const text = await transcribeAudio(blob, patientId ?? '', apiKey)
+        const text = await transcribeAudio(blob, patientId ?? '')
         onTranscript(text)
         setStatus('done')
       } catch (e: unknown) {
