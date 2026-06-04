@@ -61,7 +61,7 @@ STRICT RULES:
       setGenerated(true)
       onOverviewGenerated?.(reply)
     } catch (e: unknown) {
-      setAiError(e instanceof Error ? e.message : 'Failed to generate overview')
+      setAiError(e instanceof Error ? e.message : String(e))
     } finally {
       setAiLoading(false)
     }
