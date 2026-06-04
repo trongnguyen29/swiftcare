@@ -11,10 +11,11 @@
     "deploy": "npm run build && wrangler deploy"
   },
   "dependencies": {
-    "@supabase/supabase-js": "^2.106.2",
+    "@supabase/supabase-js": "^2.107.0",
+    "hono": "^4.12.23",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
-    "recharts": "^2.12.7",
+    "recharts": "^2.15.4",
     "supabase": "^2.101.0"
   },
   "devDependencies": {
