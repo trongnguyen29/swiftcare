@@ -23,17 +23,12 @@ function blobToBase64(blob: Blob): Promise<string> {
   })
 }
 
-export async function transcribeAudio(
-  blob: Blob,
-  patientId: string,
-  apiKey: string,
-): Promise<string> {
+export async function transcribeAudio(blob: Blob, patientId: string): Promise<string> {
   const audioB64 = await blobToBase64(blob)
   return invoke<string>('transcribe_audio', {
     audioB64,
     mimeType: blob.type || 'audio/webm',
     patientId,
-    apiKey,
   })
 }
 
@@ -50,11 +45,23 @@ export async function loadNotes(patientId: string): Promise<SavedNote[]> {
   return invoke<SavedNote[]>('load_notes', { patientId })
 }
 
-// ── API key (Rust → config.json in app data dir) ──
-export async function getApiKey(): Promise<string> {
-  return invoke<string>('get_api_key')
+// ── Cohort AI insights (Rust → Anthropic Claude) ──
+export async function generateCohortInsights(statsJson: string): Promise<string> {
+  return invoke<string>('generate_cohort_insights', { statsJson })
 }
 
-export async function setApiKey(key: string): Promise<void> {
-  return invoke('set_api_key', { key })
+// ── Visit transcript → SOAP note (Rust → Claude) ──
+export async function summarizeTranscript(
+  transcript: string,
+  patientContext: string,
+): Promise<string> {
+  return invoke<string>('summarize_transcript', { transcript, patientContext })
+}
+
+// ── Per-patient AI chat (Rust → Claude) ──
+export async function chatWithPatientContext(
+  messages: { role: string; content: string }[],
+  patientContext: string,
+): Promise<string> {
+  return invoke<string>('chat_with_patient_context', { messages, patientContext })
 }

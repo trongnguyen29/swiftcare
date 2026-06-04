@@ -1,24 +1,31 @@
 import { useState, useEffect } from 'react'
-import { saveNote as apiSaveNote, loadNotes as apiLoadNotes } from '../lib/api'
-import type { SavedNote } from '../lib/supabase'
+import { saveNote as apiSaveNote, loadNotes as apiLoadNotes, summarizeTranscript } from '../lib/api'
+import { buildPatientContext } from '../lib/patientContext'
+import type { SavedNote, Patient } from '../lib/supabase'
 
 interface Props {
-  patientId: string | null
+  patient: Patient | null
   transcript: string
   onClear: () => void
 }
 
-export default function TranscriptPanel({ patientId, transcript, onClear }: Props) {
+export default function TranscriptPanel({ patient, transcript, onClear }: Props) {
   const [editedTranscript, setEditedTranscript] = useState('')
-  const [notes, setNotes]       = useState('')
-  const [saved, setSaved]       = useState(false)
-  const [history, setHistory]   = useState<SavedNote[]>([])
-  const [showHistory, setShowHistory] = useState(false)
+  const [notes,            setNotes]            = useState('')
+  const [saved,            setSaved]            = useState(false)
+  const [history,          setHistory]          = useState<SavedNote[]>([])
+  const [showHistory,      setShowHistory]      = useState(false)
+  const [noteLoading,      setNoteLoading]      = useState(false)
+  const [noteError,        setNoteError]        = useState<string | null>(null)
+
+  const patientId = patient?.ptnum ?? null
 
   useEffect(() => {
     if (transcript) {
       setEditedTranscript(transcript)
       setSaved(false)
+      setNotes('')
+      setNoteError(null)
     }
   }, [transcript])
 
@@ -34,10 +41,27 @@ export default function TranscriptPanel({ patientId, transcript, onClear }: Prop
     setNotes('')
   }
 
+  async function handleGenerateNote() {
+    if (!editedTranscript.trim() || !patient) return
+    setNoteLoading(true)
+    setNoteError(null)
+    try {
+      const context = buildPatientContext(patient)
+      const note = await summarizeTranscript(editedTranscript, context)
+      setNotes(note)
+      setSaved(false)
+    } catch (e: unknown) {
+      setNoteError(e instanceof Error ? e.message : 'Failed to generate note')
+    } finally {
+      setNoteLoading(false)
+    }
+  }
+
   function handleClear() {
     setEditedTranscript('')
     setNotes('')
     setSaved(false)
+    setNoteError(null)
     onClear()
   }
 
@@ -51,6 +75,17 @@ export default function TranscriptPanel({ patientId, transcript, onClear }: Prop
           {patientId && (
             <button className="btn-ghost-sm" onClick={() => setShowHistory(!showHistory)}>
               {showHistory ? 'Hide History' : `History (${history.length})`}
+            </button>
+          )}
+          {hasTranscript && !showHistory && (
+            <button
+              className="btn-ghost-sm"
+              onClick={handleGenerateNote}
+              disabled={noteLoading || !patient}
+              style={{ display: 'flex', alignItems: 'center', gap: 4 }}
+            >
+              <span style={{ fontSize: 10 }}>✦</span>
+              {noteLoading ? 'Generating…' : 'Generate Note'}
             </button>
           )}
           {hasTranscript && !saved && (
@@ -71,9 +106,7 @@ export default function TranscriptPanel({ patientId, transcript, onClear }: Prop
             )}
             {history.map(n => (
               <div key={n.id} className="history-item">
-                <div className="history-meta">
-                  {new Date(n.createdAt).toLocaleString()}
-                </div>
+                <div className="history-meta">{new Date(n.createdAt).toLocaleString()}</div>
                 <div className="history-transcript">{n.transcript}</div>
                 {n.notes && <div className="history-notes">{n.notes}</div>}
               </div>
@@ -95,14 +128,34 @@ export default function TranscriptPanel({ patientId, transcript, onClear }: Prop
                   onChange={e => { setEditedTranscript(e.target.value); setSaved(false) }}
                   rows={6}
                 />
-                <div className="transcript-label" style={{ marginTop: 12 }}>Additional Notes</div>
+
+                {noteError && (
+                  <div style={{ fontSize: 11, color: 'var(--danger)', marginTop: 6 }}>
+                    ⚠ {noteError}
+                  </div>
+                )}
+
+                <div className="transcript-label" style={{ marginTop: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
+                  Clinical Note
+                  {notes && (
+                    <span style={{ fontSize: 9, background: 'var(--blue-600)', color: '#fff', padding: '1px 5px', borderRadius: 3, fontWeight: 700, letterSpacing: '.3px' }}>
+                      AI DRAFT
+                    </span>
+                  )}
+                </div>
                 <textarea
                   className="transcript-notes"
-                  placeholder="Add clinical notes, observations, or follow-up actions…"
+                  placeholder={noteLoading ? 'Generating clinical note…' : 'Click ✦ Generate Note to create an AI-drafted SOAP note, or type manually…'}
                   value={notes}
                   onChange={e => setNotes(e.target.value)}
-                  rows={3}
+                  rows={notes ? 10 : 3}
+                  style={{ opacity: noteLoading ? 0.5 : 1 }}
                 />
+                {notes && (
+                  <div style={{ fontSize: 10, color: 'var(--text-faint)', marginTop: 4 }}>
+                    AI-drafted — review and edit before saving. Not a substitute for physician judgment.
+                  </div>
+                )}
               </>
             )}
           </>

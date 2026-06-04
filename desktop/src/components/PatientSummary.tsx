@@ -1,3 +1,6 @@
+import { useState } from 'react'
+import { chatWithPatientContext } from '../lib/api'
+import { buildPatientContext } from '../lib/patientContext'
 import type { Patient } from '../lib/supabase'
 
 interface Props { patient: Patient; section?: 'overview' | 'history' }
@@ -25,6 +28,27 @@ const SEV_COLOR: Record<string, string> = {
 }
 
 export default function PatientSummary({ patient: p, section }: Props) {
+  const [aiOverview, setAiOverview]   = useState<string | null>(null)
+  const [aiLoading,  setAiLoading]    = useState(false)
+  const [aiError,    setAiError]      = useState<string | null>(null)
+  const [generated,  setGenerated]    = useState(false)
+
+  async function generateOverview() {
+    setAiLoading(true); setAiError(null)
+    try {
+      const reply = await chatWithPatientContext(
+        [{ role: 'user', content: 'Provide a concise 3–4 sentence clinical overview of this patient for a clinician reviewing the record. Cover: diagnosis status and SCC score, key risk factors and comorbidities, the most significant lab or vital abnormality, and one priority clinical recommendation. Prose only — no headers or bullet points.' }],
+        buildPatientContext(p),
+      )
+      setAiOverview(reply)
+      setGenerated(true)
+    } catch (e: unknown) {
+      setAiError(e instanceof Error ? e.message : 'Failed to generate overview')
+    } finally {
+      setAiLoading(false)
+    }
+  }
+
   const showOverview = !section || section === 'overview'
   const showHistory  = !section || section === 'history'
   const sccPct = p.scc ? Math.min(100, Math.round((p.scc / 172) * 100)) : 0
@@ -72,6 +96,43 @@ export default function PatientSummary({ patient: p, section }: Props) {
           </div>
         </div>
       </div>}
+
+      {/* ── AI Overview (overview only) ── */}
+      {showOverview && (
+        <div className="card" style={{ marginBottom: 2 }}>
+          <div className="card-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ background: 'var(--blue-600)', color: '#fff', fontSize: 9, fontWeight: 700, padding: '2px 6px', borderRadius: 4, letterSpacing: '.5px' }}>AI</span>
+              <span className="card-title">Patient Overview</span>
+            </div>
+            <button
+              onClick={generateOverview}
+              disabled={aiLoading}
+              style={{ padding: '5px 12px', fontSize: 11, fontWeight: 600, borderRadius: 7, border: 'none', cursor: aiLoading ? 'not-allowed' : 'pointer', background: aiLoading ? 'var(--bg-muted)' : 'var(--blue-600)', color: aiLoading ? 'var(--text-faint)' : '#fff' }}
+            >
+              {aiLoading ? 'Generating…' : generated ? 'Regenerate' : '✦ Generate Overview'}
+            </button>
+          </div>
+          {aiError && (
+            <div style={{ margin: '0 16px 12px', padding: '8px 12px', background: 'var(--danger-bg)', border: '1px solid var(--danger-bdr)', borderRadius: 6, fontSize: 12, color: 'var(--danger)' }}>
+              ⚠ {aiError}
+            </div>
+          )}
+          {aiOverview && !aiLoading && (
+            <div style={{ padding: '4px 20px 16px' }}>
+              <p style={{ margin: 0, fontSize: 13, lineHeight: 1.7, color: 'var(--text-body)' }}>{aiOverview}</p>
+              <div style={{ marginTop: 10, fontSize: 10, color: 'var(--text-faint)' }}>
+                AI-generated clinical summary — for decision support only. Always apply professional judgment.
+              </div>
+            </div>
+          )}
+          {!aiOverview && !aiLoading && !aiError && (
+            <div style={{ padding: '16px 20px', fontSize: 12, color: 'var(--text-faint)', textAlign: 'center' }}>
+              Click <strong style={{ color: 'var(--text-muted)' }}>Generate Overview</strong> for an AI-drafted clinical summary of this patient.
+            </div>
+          )}
+        </div>
+      )}
 
       {/* ── Vitals · Labs · Risk (overview) ── */}
       {showOverview && <div className="summary-cols">

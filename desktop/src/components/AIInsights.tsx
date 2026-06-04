@@ -1,4 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
+import { chatWithPatientContext } from '../lib/api'
+import { buildPatientContext } from '../lib/patientContext'
 import type { Patient } from '../lib/supabase'
 
 interface Props { patient: Patient }
@@ -328,11 +330,7 @@ function InsightsTab({ patient: p }: Props) {
 }
 
 /* ─────────────────────────────────────────
-   CHAT TAB — LM Studio (fully local, OpenAI-compatible API)
-   Download: https://lmstudio.ai
-   1. Open LM Studio → search "qwen" → Download any Qwen model
-   2. Go to Local Server tab → Start Server
-   That's it — no terminal needed.
+   CHAT TAB — AI Response via Rust backend
 ───────────────────────────────────────── */
 
 interface ChatMessage {
@@ -340,78 +338,21 @@ interface ChatMessage {
   content: string
 }
 
-const LM_STUDIO_URL = 'http://localhost:1234'
-const DEFAULT_MODEL = 'local-model' // LM Studio uses whatever model is loaded
-
-function buildPatientContext(p: Patient): string {
-  const name  = [p.first_name, p.middle_name, p.last_name].filter(Boolean).join(' ') || p.ptnum
-  const meds  = (p.medications ?? []).filter(m => m.status === 'active').map(m => `${m.name} ${m.dose ?? ''} (${m.frequency ?? ''})`).join(', ') || 'None'
-  const probs = (p.problems ?? []).filter(pr => pr.status === 'active').map(pr => `${pr.display} (${pr.icd10_code})`).join(', ') || 'None'
-  const allgs = (p.allergies ?? []).map(a => `${a.substance} [${a.severity}]`).join(', ') || 'NKDA'
-
-  return `PATIENT RECORD — CONFIDENTIAL
-Patient: ${name} | ID: ${p.ptnum}
-Age: ${p.age ?? '—'} | Sex: ${p.administrative_sex ?? '—'} | Race: ${p.race ?? '—'}
-LC Status: ${p.label === 1 ? 'Lung Cancer Positive (LC+)' : 'Control'} | SCC Score: ${p.scc ?? '—'}
-Tobacco: ${p.tobacco_status ?? '—'}
-
-VITALS
-BP: ${p.systolic_bp ?? '—'}/${p.diastolic_bp ?? '—'} mmHg | HR: ${p.heart_rate ?? '—'} bpm | SpO₂: ${p.oxygen_saturation ?? '—'}% | BMI: ${p.bmi ?? '—'} | Pain: ${p.pain_score ?? '—'}/10
-
-LABS
-Total Cholesterol: ${p.total_cholesterol ?? '—'} | LDL: ${p.ldl ?? '—'} | HDL: ${p.hdl ?? '—'} | TG: ${p.triglycerides ?? '—'}
-HbA1c: ${p.hba1c ?? '—'}% | Glucose: ${p.glucose ?? '—'} | eGFR: ${p.egfr ?? '—'} | Creatinine: ${p.creatinine ?? '—'}
-Hemoglobin: ${p.hemoglobin ?? '—'} | WBC: ${p.wbc ?? '—'} | Platelets: ${p.platelets ?? '—'}
-
-ACTIVE PROBLEMS: ${probs}
-ACTIVE MEDICATIONS: ${meds}
-ALLERGIES: ${allgs}
-
-SDOH: Education: ${p.sdoh_education_level ?? '—'} | Housing: ${p.sdoh_housing_status ?? '—'} | Financial: ${p.sdoh_financial_strain ?? '—'} | Transport insecurity: ${p.sdoh_transportation_insecurity ? 'Yes' : 'No'}
-
-${p.assessment_plan ? `ASSESSMENT & PLAN:\n${p.assessment_plan}` : ''}`
-}
-
-const SYSTEM_PROMPT = (ctx: string) =>
-`You are a clinical AI assistant embedded in SwiftCare EHR. You have access to the following patient record and can help clinicians think through differential diagnoses, treatment considerations, drug interactions, care gaps, and evidence-based guidelines.
-
-Rules:
-- Decision-support only. Always remind clinicians to apply their own judgment.
-- Never make definitive diagnoses — use language like "consider," "may suggest," "consistent with."
-- Keep responses concise and clinically focused. Use bullet points when listing items.
-- All inference runs locally on this device — patient data never leaves the machine.
-
-${ctx}`
-
 function ChatTab({ patient: p }: Props) {
-  const [messages, setMessages]   = useState<ChatMessage[]>([])
-  const [input, setInput]         = useState('')
-  const [loading, setLoading]     = useState(false)
-  const [serverOk, setServerOk]   = useState<boolean | null>(null)
-  const [error, setError]         = useState<string | null>(null)
+  const [messages, setMessages] = useState<ChatMessage[]>([])
+  const [input, setInput]       = useState('')
+  const [loading, setLoading]   = useState(false)
+  const [error, setError]       = useState<string | null>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
-  const abortRef  = useRef<AbortController | null>(null)
 
-  // Check LM Studio health — plain timeout via Promise.race, no AbortSignal.timeout
   useEffect(() => {
     setMessages([])
     setError(null)
-    setServerOk(null)
-
-    const ctrl = new AbortController()
-    const timer = setTimeout(() => ctrl.abort(), 3000)
-
-    fetch(`${LM_STUDIO_URL}/v1/models`, { signal: ctrl.signal })
-      .then(r => setServerOk(r.ok))
-      .catch(() => setServerOk(false))
-      .finally(() => clearTimeout(timer))
-
-    return () => { ctrl.abort(); clearTimeout(timer) }
   }, [p.ptnum])
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages])
+  }, [messages, loading])
 
   async function send() {
     const text = input.trim()
@@ -419,87 +360,21 @@ function ChatTab({ patient: p }: Props) {
     setInput('')
     setError(null)
 
-    const userMsg: ChatMessage = { role: 'user', content: text }
-    const history = [...messages, userMsg]
+    const history: ChatMessage[] = [...messages, { role: 'user', content: text }]
     setMessages(history)
     setLoading(true)
 
-    const ctrl = new AbortController()
-    abortRef.current = ctrl
-
     try {
-      const res = await fetch(`${LM_STUDIO_URL}/v1/chat/completions`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        signal: ctrl.signal,
-        body: JSON.stringify({
-          model: DEFAULT_MODEL,
-          stream: true,
-          messages: [
-            { role: 'system', content: SYSTEM_PROMPT(buildPatientContext(p)) },
-            ...history.map(m => ({ role: m.role, content: m.content })),
-          ],
-        }),
-      })
-
-      if (!res.ok) {
-        const txt = await res.text().catch(() => '')
-        throw new Error(`Server returned ${res.status}${txt ? ': ' + txt.slice(0, 120) : ''}`)
-      }
-      if (!res.body) throw new Error('No response body')
-
-      // Add empty assistant bubble to stream into
-      setMessages(prev => [...prev, { role: 'assistant', content: '' }])
-
-      const reader = res.body.getReader()
-      const decoder = new TextDecoder()
-      let assistantText = ''
-
-      while (true) {
-        const { done, value } = await reader.read()
-        if (done) break
-        const chunk = decoder.decode(value, { stream: true })
-        for (const line of chunk.split('\n')) {
-          const trimmed = line.trim()
-          if (!trimmed || trimmed === 'data: [DONE]') continue
-          const jsonStr = trimmed.startsWith('data: ') ? trimmed.slice(6) : trimmed
-          try {
-            const json = JSON.parse(jsonStr)
-            const token: string = json.choices?.[0]?.delta?.content ?? ''
-            assistantText += token
-            setMessages(prev => {
-              const updated = [...prev]
-              updated[updated.length - 1] = { role: 'assistant', content: assistantText }
-              return updated
-            })
-          } catch {
-            // skip non-JSON lines
-          }
-        }
-      }
+      const reply = await chatWithPatientContext(
+        history.map(m => ({ role: m.role, content: m.content })),
+        buildPatientContext(p),
+      )
+      setMessages(prev => [...prev, { role: 'assistant', content: reply }])
     } catch (err: unknown) {
-      if ((err as Error).name === 'AbortError') {
-        // user stopped — keep partial response
-      } else {
-        setError(`${(err as Error).message}. Is LM Studio running with a model loaded and server started?`)
-        // remove empty bubble if nothing came through
-        setMessages(prev => {
-          const last = prev[prev.length - 1]
-          return last?.role === 'assistant' && !last.content ? prev.slice(0, -1) : prev
-        })
-      }
+      setError(err instanceof Error ? err.message : 'Request failed')
     } finally {
       setLoading(false)
-      abortRef.current = null
     }
-  }
-
-  function stop() { abortRef.current?.abort() }
-
-  function clearChat() {
-    abortRef.current?.abort()
-    setMessages([])
-    setError(null)
   }
 
   const suggestions = [
@@ -509,49 +384,29 @@ function ChatTab({ patient: p }: Props) {
     'What does the SCC score indicate here?',
   ]
 
-  const statusLabel = serverOk === null ? 'Checking LM Studio…' : serverOk ? 'LM Studio connected' : 'LM Studio offline'
-
   return (
     <div className="ai-chat-wrap">
-      {/* Status bar */}
       <div className="ai-chat-statusbar">
         <div className="ai-chat-status-left">
-          <span className={`ollama-dot ${serverOk === true ? 'ollama-dot--ok' : serverOk === false ? 'ollama-dot--err' : 'ollama-dot--checking'}`} />
-          <span style={{ fontSize: 10, color: 'var(--text-faint)' }}>{statusLabel}</span>
-          <span className="ai-privacy-chip">🔒 On-device · No data sent externally</span>
+          <span className="ollama-dot ollama-dot--ok" />
+          <span style={{ fontSize: 10, color: 'var(--text-faint)' }}>AI Assistant · ready</span>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          {messages.length > 0 && (
-            <button className="btn-ghost-sm" onClick={clearChat}>Clear</button>
-          )}
-        </div>
+        {messages.length > 0 && (
+          <button className="btn-ghost-sm" onClick={() => { setMessages([]); setError(null) }}>Clear</button>
+        )}
       </div>
 
-      {/* Offline notice */}
-      {serverOk === false && (
-        <div className="ai-chat-offline">
-          <strong>LM Studio not detected.</strong> To get started:
-          <ol style={{ marginTop: 6, paddingLeft: 18, lineHeight: 1.8 }}>
-            <li>Download <strong>LM Studio</strong> at <span style={{ fontFamily: 'var(--mono)' }}>lmstudio.ai</span> (free, Mac app)</li>
-            <li>Search for a <strong>Qwen</strong> model (e.g. <em>Qwen2.5 7B</em>) and download it</li>
-            <li>Go to the <strong>Local Server</strong> tab → click <strong>Start Server</strong></li>
-            <li>Come back here and reload</li>
-          </ol>
-        </div>
-      )}
-
-      {/* Messages */}
       <div className="ai-chat-messages">
-        {messages.length === 0 && serverOk !== false && (
+        {messages.length === 0 && (
           <div className="ai-chat-empty">
             <div className="ai-chat-empty-icon">
-              <span style={{ fontSize: 18 }}>🤖</span>
+              <span style={{ fontSize: 18 }}>✦</span>
             </div>
             <div style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 500, marginBottom: 4 }}>
               Ask anything about this patient
             </div>
             <div style={{ fontSize: 11, color: 'var(--text-faint)', marginBottom: 12 }}>
-              Powered by LM Studio — runs entirely on your Mac
+              Full patient record loaded as context
             </div>
             <div className="ai-suggested-questions">
               {suggestions.map(q => (
@@ -563,40 +418,42 @@ function ChatTab({ patient: p }: Props) {
 
         {messages.map((m, i) => (
           <div key={i} className={`ai-chat-msg ai-chat-msg--${m.role}`}>
-            <div className="ai-chat-msg-label">{m.role === 'user' ? 'You' : 'AI'}</div>
+            <div className="ai-chat-msg-label">{m.role === 'user' ? 'You' : 'AI Response'}</div>
             <div className="ai-chat-msg-bubble">
-              {m.content
-                ? m.content.split('\n').map((line, li, arr) => (
-                    <span key={li}>{line}{li < arr.length - 1 ? <br /> : null}</span>
-                  ))
-                : <span className="ai-typing-cursor" />
-              }
+              {m.content.split('\n').map((line, li, arr) => (
+                <span key={li}>{line}{li < arr.length - 1 ? <br /> : null}</span>
+              ))}
             </div>
           </div>
         ))}
+
+        {loading && (
+          <div className="ai-chat-msg ai-chat-msg--assistant">
+            <div className="ai-chat-msg-label">AI Response</div>
+            <div className="ai-chat-msg-bubble">
+              <span className="ai-typing-cursor" />
+            </div>
+          </div>
+        )}
 
         {error && <div className="ai-chat-error">⚠ {error}</div>}
         <div ref={bottomRef} />
       </div>
 
-      {/* Input */}
       <div className="ai-chat-input-row">
         <textarea
           className="ai-chat-input"
-          placeholder={serverOk === false ? 'Start LM Studio to enable chat…' : 'Ask about this patient… (Enter to send, Shift+Enter for newline)'}
+          placeholder="Ask about this patient… (Enter to send, Shift+Enter for newline)"
           value={input}
-          disabled={serverOk === false}
           onChange={e => setInput(e.target.value)}
           onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send() } }}
           rows={2}
         />
-        {loading
-          ? <button className="ai-send-btn ai-send-btn--stop" onClick={stop} title="Stop">■</button>
-          : <button className="ai-send-btn" onClick={send} disabled={!input.trim() || serverOk === false} title="Send (Enter)">↑</button>
-        }
+        <button className="ai-send-btn" onClick={send} disabled={loading || !input.trim()} title="Send (Enter)">
+          {loading ? '…' : '↑'}
+        </button>
       </div>
       <div className="ai-footer">
-        All AI inference runs locally via LM Studio. Patient data never leaves this device.
         Clinical output is for decision support only — always apply professional judgment.
       </div>
     </div>
@@ -636,7 +493,6 @@ export default function AIInsights({ patient: p }: Props) {
               onClick={() => setTab('chat')}
             >
               AI Chat
-              <span className="ai-tab-pill-local">local</span>
             </button>
           </div>
         </div>
