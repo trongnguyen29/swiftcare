@@ -4,5 +4,16 @@
 <dict>
   <key>NSMicrophoneUsageDescription</key>
   <string>SwiftCare needs microphone access to record visit audio for transcription.</string>
+  <key>CFBundleURLTypes</key>
+  <array>
+    <dict>
+      <key>CFBundleURLName</key>
+      <string>com.trongnguyen.swiftcare-desktop</string>
+      <key>CFBundleURLSchemes</key>
+      <array>
+        <string>swiftcare</string>
+      </array>
+    </dict>
+  </array>
 </dict>
 </plist>

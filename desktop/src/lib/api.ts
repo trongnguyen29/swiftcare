@@ -4,7 +4,7 @@ import type { Patient, SavedNote } from './supabase'
 
 export type { Patient, SavedNote }
 
-// ── Live patient data (Rust → Supabase) ──
+// ── Synthea patient data (Rust → Supabase) ──
 export async function queryPatients(
   query: string,
   filter: 'all' | 'positive' | 'control',
@@ -13,7 +13,7 @@ export async function queryPatients(
   return rows.map(normalizeRow)
 }
 
-// ── Voice transcription (Rust → OpenAI Whisper) ──
+// ── Voice transcription (Rust → Worker → OpenAI Whisper) ──
 function blobToBase64(blob: Blob): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader()
@@ -32,7 +32,7 @@ export async function transcribeAudio(blob: Blob, patientId: string): Promise<st
   })
 }
 
-// ── Visit notes (Rust → app data dir JSON) ──
+// ── Visit notes (Rust → local app data dir) ──
 export async function saveNote(
   patientId: string,
   transcript: string,
@@ -45,12 +45,7 @@ export async function loadNotes(patientId: string): Promise<SavedNote[]> {
   return invoke<SavedNote[]>('load_notes', { patientId })
 }
 
-// ── Cohort AI insights (Rust → Anthropic Claude) ──
-export async function generateCohortInsights(statsJson: string): Promise<string> {
-  return invoke<string>('generate_cohort_insights', { statsJson })
-}
-
-// ── Visit transcript → SOAP note (Rust → Claude) ──
+// ── SOAP note generation (Rust → Worker → OpenAI) ──
 export async function summarizeTranscript(
   transcript: string,
   patientContext: string,
@@ -58,10 +53,15 @@ export async function summarizeTranscript(
   return invoke<string>('summarize_transcript', { transcript, patientContext })
 }
 
-// ── Per-patient AI chat (Rust → Claude) ──
+// ── Per-patient AI chat (Rust → Worker → OpenAI) ──
 export async function chatWithPatientContext(
   messages: { role: string; content: string }[],
   patientContext: string,
 ): Promise<string> {
   return invoke<string>('chat_with_patient_context', { messages, patientContext })
+}
+
+// ── Cohort AI insights (Rust → Worker → OpenAI) ──
+export async function generateCohortInsights(statsJson: string): Promise<string> {
+  return invoke<string>('generate_cohort_insights', { statsJson })
 }

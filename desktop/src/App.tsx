@@ -1,20 +1,54 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import PatientSearch from './components/PatientSearch'
 import PatientSummary from './components/PatientSummary'
 import PatientCharts from './components/PatientCharts'
 import AIInsights from './components/AIInsights'
 import VoiceRecorder from './components/VoiceRecorder'
 import TranscriptPanel from './components/TranscriptPanel'
+import InteropTab from './components/InteropTab'
+import { onOpenUrl, getCurrent } from '@tauri-apps/plugin-deep-link'
 import type { Patient } from './lib/supabase'
 import './App.css'
 
 type PatientTab = 'overview' | 'ai' | 'history' | 'charts' | 'visit'
+type AppMode = 'synthea' | 'interop'
 
 export default function App() {
+  const [mode,       setMode]       = useState<AppMode>('synthea')
   const [selected,   setSelected]   = useState<Patient | null>(null)
   const [transcript, setTranscript] = useState('')
   const [activeTab,  setActiveTab]  = useState<PatientTab>('overview')
   const overviewCache = useRef<Map<string, string>>(new Map())
+
+  // Deep-link handler: swiftcare://epic/done?code=…
+  const [incomingClaim, setIncomingClaim] = useState<string | null>(null)
+
+  function handleDeepLinkUrls(urls: string[]) {
+    for (const url of urls) {
+      try {
+        const u = new URL(url)
+        if (u.hostname === 'epic' && u.pathname === '/done') {
+          const code = u.searchParams.get('code')
+          if (code) {
+            setMode('interop')
+            setIncomingClaim(code)
+          }
+        }
+      } catch { /* invalid URL */ }
+    }
+  }
+
+  useEffect(() => {
+    // Cold-start: app was launched via swiftcare:// — getCurrent() returns the launch URL
+    getCurrent().then(urls => {
+      if (urls) handleDeepLinkUrls(Array.isArray(urls) ? urls : [urls])
+    }).catch(() => {})
+
+    // Warm-start: app was already running when the deep link fired
+    let unlisten: (() => void) | undefined
+    onOpenUrl(handleDeepLinkUrls).then(fn => { unlisten = fn })
+    return () => { unlisten?.() }
+  }, [])
 
   function selectPatient(p: Patient) {
     setSelected(p)
@@ -54,7 +88,17 @@ export default function App() {
           <span style={{ color: 'var(--text-muted)', fontWeight: 400, fontSize: 13 }}>Desktop</span>
         </div>
         <div className="header-divider" />
-        <span className="header-subtitle">EHR Visit Assistant</span>
+        {/* Mode toggle */}
+        <div className="source-toggle" style={{ margin: '0 8px' }}>
+          <button
+            className={`source-btn ${mode === 'synthea' ? 'active' : ''}`}
+            onClick={() => setMode('synthea')}
+          >Patients</button>
+          <button
+            className={`source-btn ${mode === 'interop' ? 'active' : ''}`}
+            onClick={() => setMode('interop')}
+          >⇌ Epic</button>
+        </div>
         <div className="header-spacer" />
         {selected && (
           <div className="dr-chip">
@@ -66,7 +110,17 @@ export default function App() {
         )}
       </header>
 
-      <div className="body-layout">
+      {/* Interop mode takes over the whole body */}
+      {mode === 'interop' && (
+        <div className="body-layout" style={{ flex: 1, overflow: 'hidden' }}>
+          <InteropTab
+            incomingClaim={incomingClaim}
+            onClaimProcessed={() => setIncomingClaim(null)}
+          />
+        </div>
+      )}
+
+      {mode === 'synthea' && <div className="body-layout">
         <PatientSearch selected={selected} onSelect={selectPatient} />
 
         <main className="main-content">
@@ -142,7 +196,7 @@ export default function App() {
             </>
           )}
         </main>
-      </div>
+      </div>}
     </div>
   )
 }

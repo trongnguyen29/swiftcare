@@ -36,5 +36,12 @@
     "macOS": {
       "infoPlist": "Info.plist"
     }
+  },
+  "plugins": {
+    "deep-link": {
+      "desktop": {
+        "schemes": ["swiftcare"]
+      }
+    }
   }
 }
