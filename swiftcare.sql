@@ -18,8 +18,8 @@ create table if not exists epic_oauth_sessions (
   status          text not null default 'pending'
                   check (status in ('pending', 'connected', 'error')),
   fhir_base       text not null,              -- FHIR R4 base URL from discovery or iss
-  state           text,                       -- HMAC-signed CSRF state (carries PKCE verifier)
-  code_verifier   text,                       -- PKCE verifier (transient, cleared after exchange)
+  state           text,                       -- HMAC-signed CSRF state (sessionId only; verifier stays here)
+  code_verifier   text,                       -- PKCE verifier (server-side only; cleared after token exchange)
   access_token    text,
   refresh_token   text,
   token_type      text,
@@ -73,25 +73,63 @@ create table if not exists epic_fetch_log (
 );
 create index if not exists idx_fetch_log_session on epic_fetch_log(session_id);
 
+-- ─── SESSION → PATIENT LINK ───────────────────────────────────────────────────
+-- Junction table that scopes patient access to the session that fetched them.
+-- Prevents any connected session from reading PHI fetched by a different session/org.
+-- Populated by the Worker whenever a Patient resource is persisted via the FHIR proxy.
+--
+-- Migration: earlier versions used patient_fhir_id (raw FHIR id).
+-- The column is now patient_db_id (namespaced: "source|raw_fhir_id") so the
+-- key stays correct even when two FHIR servers issue the same raw resource id.
+-- This block handles both fresh installs and upgrades.
+do $$ begin
+  if exists (
+    select 1 from information_schema.columns
+    where table_name = 'session_patient' and column_name = 'patient_fhir_id'
+  ) then
+    -- Old rows store raw FHIR IDs which can no longer match the namespaced patient.id.
+    -- Clear them; the Worker repopulates correctly on the next patient fetch.
+    delete from session_patient;
+    alter table session_patient rename column patient_fhir_id to patient_db_id;
+  end if;
+end $$;
+
+create table if not exists session_patient (
+  session_id      text not null references epic_oauth_sessions(id) on delete cascade,
+  patient_db_id   text not null,   -- "source|raw_fhir_id" — matches patient(id) exactly
+  linked_at       timestamptz not null default now(),
+  primary key (session_id, patient_db_id)
+);
+create index if not exists idx_session_patient_dbid on session_patient(patient_db_id);
+
 -- ─── INTEROP PATIENT LIST VIEW ────────────────────────────────────────────────
 -- Powers the desktop Interop tab's patient list from persisted Epic patients.
--- Depends on fhir.sql tables: patient, patient_name, patient_identifier.
-create or replace view interop_patient_list as
+-- The source filter is removed: source now stores the FHIR server URL (not the
+-- literal 'epic'), so filtering on source would break. All patients in this
+-- schema are from Epic by construction.
+-- Caller (Worker handlePatientList) joins this view against session_patient to
+-- return only the patients that belong to the requesting session.
+drop view if exists interop_patient_list;
+create view interop_patient_list as
 select
-  p.id            as patient_fhir_id,
+  -- db_id: the namespaced PK used for session_patient joins and WHERE filtering
+  p.id                   as db_id,
+  -- patient_fhir_id: raw Epic resource id for FHIR API calls from the desktop
+  p.resource->>'id'      as patient_fhir_id,
+  p.source,
   p.gender,
   p.birth_date,
   coalesce(
     n.text,
     trim(concat_ws(' ', array_to_string(n.given, ' '), n.family))
-  )               as full_name,
+  )                      as full_name,
   (
     select pi.value
     from   patient_identifier pi
     where  pi.patient_id = p.id
       and  pi.type_code  = 'MR'
     limit  1
-  )               as mrn,
+  )                      as mrn,
   p.last_updated,
   p.ingested_at
 from patient p
@@ -100,8 +138,7 @@ left join lateral (
   where  pn.patient_id = p.id
   order  by pn.id
   limit  1
-) n on true
-where p.source = 'epic';
+) n on true;
 
 -- ─── ROW LEVEL SECURITY ───────────────────────────────────────────────────────
 -- No anon/authenticated policies: only the Worker's service_role key may read/write.
@@ -109,6 +146,7 @@ alter table epic_oauth_sessions enable row level security;
 alter table epic_claim_codes    enable row level security;
 alter table synthea_epic_link   enable row level security;
 alter table epic_fetch_log      enable row level security;
+alter table session_patient     enable row level security;
 
 -- ─── TRIGGERS ─────────────────────────────────────────────────────────────────
 create or replace function set_updated_at()

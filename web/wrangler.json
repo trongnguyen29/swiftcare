@@ -5,5 +5,10 @@
   "assets": {
     "directory": "./dist",
     "binding": "ASSETS"
+  },
+  "vars": {
+    "EPIC_FHIR_BASE": "https://fhir.epic.com/interconnect-fhir-oauth/api/FHIR/R4/",
+    "EPIC_AUTHORIZE_URL": "https://fhir.epic.com/interconnect-fhir-oauth/oauth2/authorize",
+    "EPIC_TOKEN_URL": "https://fhir.epic.com/interconnect-fhir-oauth/oauth2/token"
   }
 }
