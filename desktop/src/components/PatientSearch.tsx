@@ -12,7 +12,7 @@ export default function PatientSearch({ selected, onSelect }: Props) {
   const [patients, setPatients] = useState<Patient[]>([])
   const [loading, setLoading]   = useState(false)
   const [filter, setFilter]     = useState<'all' | 'positive' | 'control'>('all')
-  const [source, setSource]     = useState<'mock' | 'live'>('mock')
+  const [source, setSource]     = useState<'mock' | 'live'>('live')
   const [error,  setError]      = useState<string | null>(null)
 
   // ── Live fetch via Rust → Supabase ──
@@ -50,17 +50,7 @@ export default function PatientSearch({ selected, onSelect }: Props) {
       <div className="sidebar-header">
         <div className="sidebar-title">Patients</div>
 
-        {/* Source toggle */}
-        <div className="source-toggle">
-          <button
-            className={`source-btn ${source === 'mock' ? 'active' : ''}`}
-            onClick={() => setSource('mock')}
-          >Demo</button>
-          <button
-            className={`source-btn ${source === 'live' ? 'active' : ''}`}
-            onClick={() => setSource('live')}
-          >Live</button>
-        </div>
+
 
         <div className="filter-pills">
           {(['all', 'positive', 'control'] as const).map(f => (
@@ -95,7 +85,7 @@ export default function PatientSearch({ selected, onSelect }: Props) {
             onClick={() => onSelect(p)}
           >
             <div className="patient-row-top">
-              <span className="patient-id">{p.ptnum}</span>
+              <span className="patient-id">{[p.first_name, p.last_name].filter(Boolean).join(' ').replace(/\d+/g, '').trim() || p.ptnum}</span>
               <span className={`badge ${p.label === 1 ? 'badge-danger' : 'badge-ok'}`}>
                 {p.label === 1 ? 'LC+' : 'Control'}
               </span>

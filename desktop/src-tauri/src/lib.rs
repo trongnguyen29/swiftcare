@@ -28,8 +28,8 @@ fn data_dir(app: &tauri::AppHandle) -> Result<std::path::PathBuf, String> {
 async fn query_patients(query: String, filter: String) -> Result<Vec<serde_json::Value>, String> {
     let mut params: Vec<(&str, String)> = vec![
         ("select", COLS.to_string()),
-        ("order",  "age.desc".to_string()),
-        ("limit",  "50".to_string()),
+        ("order",  "last_name.asc,first_name.asc".to_string()),
+        ("limit",  "150".to_string()),
     ];
     if !query.trim().is_empty() {
         params.push(("ptnum", format!("ilike.*{}*", query.trim())));

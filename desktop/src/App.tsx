@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import PatientSearch from './components/PatientSearch'
 import PatientSummary from './components/PatientSummary'
 import PatientCharts from './components/PatientCharts'
@@ -14,7 +14,17 @@ export default function App() {
   const [selected,   setSelected]   = useState<Patient | null>(null)
   const [transcript, setTranscript] = useState('')
   const [activeTab,  setActiveTab]  = useState<PatientTab>('overview')
+  const [appFont, setAppFont]       = useState("'DM Sans', system-ui, sans-serif")
+  const [fontScale, setFontScale]   = useState("1")
+  const [showSettings, setShowSettings] = useState(false)
   const overviewCache = useRef<Map<string, string>>(new Map())
+
+  useEffect(() => {
+    document.documentElement.style.setProperty('--font', appFont)
+    // Use zoom to cleanly scale the entire UI in WebKit
+    // @ts-ignore - zoom is non-standard but works perfectly in Tauri/Webkit
+    document.body.style.zoom = fontScale
+  }, [appFont, fontScale])
 
   function selectPatient(p: Patient) {
     setSelected(p)
@@ -23,7 +33,7 @@ export default function App() {
   }
 
   const isLC    = selected?.label === 1
-  const name    = selected ? [selected.first_name, selected.last_name].filter(Boolean).join(' ') || selected.ptnum : ''
+  const name    = selected ? [selected.first_name, selected.last_name].filter(Boolean).join(' ').replace(/\d+/g, '').trim() || selected.ptnum : ''
   const subline = selected ? [selected.age ? `${selected.age}y` : null, selected.administrative_sex, selected.race].filter(Boolean).join(' · ') : ''
 
   const TABS: { id: PatientTab; label: string; icon: string }[] = [
@@ -56,6 +66,13 @@ export default function App() {
         <div className="header-divider" />
         <span className="header-subtitle">EHR Visit Assistant</span>
         <div className="header-spacer" />
+        <button
+          className="settings-btn"
+          style={{ marginRight: selected ? 8 : 0 }}
+          onClick={() => setShowSettings(!showSettings)}
+        >
+          {showSettings ? 'Close Settings' : 'Settings'}
+        </button>
         {selected && (
           <div className="dr-chip">
             <span style={{ fontFamily: 'var(--mono)', fontSize: 11 }}>{selected.ptnum}</span>
@@ -65,6 +82,37 @@ export default function App() {
           </div>
         )}
       </header>
+
+      {showSettings && (
+        <div className="settings-bar">
+          <span className="settings-label">App Font:</span>
+          <select
+            className="settings-input"
+            value={appFont}
+            onChange={e => setAppFont(e.target.value)}
+          >
+            <option value="'DM Sans', system-ui, sans-serif">DM Sans (Default)</option>
+            <option value="'Inter', system-ui, sans-serif">Inter</option>
+            <option value="'Roboto', system-ui, sans-serif">Roboto</option>
+            <option value="system-ui, sans-serif">System UI</option>
+            <option value="ui-serif, Georgia, serif">Serif</option>
+            <option value="'DM Mono', monospace">Monospace</option>
+          </select>
+
+          <span className="settings-label" style={{ marginLeft: 16 }}>UI Scale:</span>
+          <select
+            className="settings-input"
+            style={{ maxWidth: 100 }}
+            value={fontScale}
+            onChange={e => setFontScale(e.target.value)}
+          >
+            <option value="0.85">Small</option>
+            <option value="1">Medium</option>
+            <option value="1.15">Large</option>
+            <option value="1.3">X-Large</option>
+          </select>
+        </div>
+      )}
 
       <div className="body-layout">
         <PatientSearch selected={selected} onSelect={selectPatient} />
@@ -123,6 +171,7 @@ export default function App() {
               <div className="pt-tab-content">
                 {activeTab === 'overview' && (
                   <PatientSummary
+                    key={selected.ptnum}
                     patient={selected}
                     section="overview"
                     cachedOverview={overviewCache.current.get(selected.ptnum)}
