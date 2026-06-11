@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { chatWithPatientContext } from '../lib/api'
 import { buildPatientContext } from '../lib/patientContext'
 import type { Patient } from '../lib/supabase'
@@ -38,6 +38,16 @@ export default function PatientSummary({ patient: p, section, cachedOverview, on
   const [aiError,    setAiError]      = useState<string | null>(null)
   const [generated,  setGenerated]    = useState(!!cachedOverview)
 
+  const showOverview = !section || section === 'overview'
+
+  useEffect(() => {
+    if (!cachedOverview && showOverview) {
+      generateOverview()
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+
   async function generateOverview() {
     setAiLoading(true); setAiError(null)
     try {
@@ -67,7 +77,6 @@ STRICT RULES:
     }
   }
 
-  const showOverview = !section || section === 'overview'
   const showHistory  = !section || section === 'history'
   const sccPct = p.scc ? Math.min(100, Math.round((p.scc / 172) * 100)) : 0
   const isLC   = p.label === 1
@@ -83,37 +92,12 @@ STRICT RULES:
     p.sdoh_veteran_status                                     && 'Veteran',
   ].filter(Boolean) as string[]
 
-  const displayName = [p.first_name, p.middle_name, p.last_name].filter(Boolean).join(' ') || p.ptnum
+  const displayName = [p.first_name, p.middle_name, p.last_name].filter(Boolean).join(' ').replace(/\d+/g, '').trim() || p.ptnum
 
   return (
     <div className="summary-wrap">
 
-      {/* ── Hero (overview only) ── */}
-      {showOverview && <div className="summary-hero">
-        <div className="hero-avatar">{p.administrative_sex === 'Male' ? '♂' : p.administrative_sex === 'Female' ? '♀' : '⊕'}</div>
-        <div className="hero-info">
-          <div className="hero-id">{displayName}</div>
-          <div style={{ fontFamily: 'var(--mono)', fontSize: 11, opacity: .75, marginTop: 1 }}>{p.ptnum}</div>
-          <div className="hero-sub">
-            {p.age ? `${p.age}y` : '—'} · {p.administrative_sex ?? '—'} · {p.race ?? '—'} · {p.preferred_language ?? '—'}
-          </div>
-          <div className="hero-badges">
-            <span className={`badge ${isLC ? 'badge-danger' : 'badge-ok'}`}>
-              {isLC ? '⚠ LC Positive' : '✓ Control'}
-            </span>
-            {p.scc != null && <span className="badge badge-blue">SCC {p.scc}</span>}
-            {p.tobacco_status === 'former' && <span className="badge badge-warn">Former Smoker</span>}
-            {p.sdoh_veteran_status && <span className="badge badge-blue">Veteran</span>}
-          </div>
-        </div>
-        <div className="hero-scc">
-          <div className="scc-label">SCC Score</div>
-          <div className="scc-big">{p.scc ?? '—'}</div>
-          <div className="scc-bar-wrap" style={{ width: 120 }}>
-            <div className="scc-bar-fill" style={{ width: `${sccPct}%` }} />
-          </div>
-        </div>
-      </div>}
+
 
       {/* ── AI Overview (overview only) ── */}
       {showOverview && (
