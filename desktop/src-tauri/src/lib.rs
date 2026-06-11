@@ -1,5 +1,3 @@
-use base64::{engine::general_purpose, Engine as _};
-use reqwest::multipart;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use tauri::Manager;
@@ -7,12 +5,14 @@ use tauri::Manager;
 // ── Credentials ───────────────────────────────────────────────────────────────
 const SUPABASE_URL:   &str = "https://ujqrxhhshxgqqjkblorh.supabase.co";
 const SUPABASE_KEY:   &str = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVqcXJ4aGhzaHhncXFqa2Jsb3JoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk4MDU3NjAsImV4cCI6MjA5NTM4MTc2MH0.t4CgUYE5oPLhocC2YtRF-WW6tMWu2Cvd0mYB_A1jWhk";
-// LLM calls go through the Cloudflare Worker — no key needed in the binary.
-// Whisper transcription only uses OPENAI_API_KEY (set in .cargo/config.toml).
-const OPENAI_API_KEY: Option<&str> = option_env!("OPENAI_API_KEY");
+// All AI — chat, summaries, and transcription — goes through the Cloudflare
+// Worker, which holds the provider keys. No API keys are baked into the binary.
 const WORKER_URL:     &str = "https://swiftcare.tnn-040.workers.dev";
 
 const TABLE: &str = "patient_summary";
+// Generated summaries live in their own table — `patient_summary` is a
+// materialized view (read-only, can't add columns or write to it).
+const SUMMARY_TABLE: &str = "patient_ai_summary";
 const COLS:  &str = "ptnum,label,scc,first_name,last_name,age,administrative_sex,race,ethnicity,state,systolic_bp,diastolic_bp,heart_rate,bmi,total_cholesterol,ldl,hdl,triglycerides,hba1c,glucose,creatinine,egfr,hemoglobin,wbc,platelets,problems";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -54,53 +54,88 @@ async fn query_patients(query: String, filter: String) -> Result<Vec<serde_json:
     res.json::<Vec<serde_json::Value>>().await.map_err(|e| e.to_string())
 }
 
+// ── Persisted AI patient summary ──────────────────────────────────────────────
+
+/// Fetch the stored AI summary + data fingerprint for one patient.
+/// Returns None if there's no row, no summary yet, or the columns don't exist
+/// (so the app keeps working before the migration is applied).
+#[tauri::command]
+async fn get_patient_summary(ptnum: String) -> Result<Option<serde_json::Value>, String> {
+    let params: Vec<(&str, String)> = vec![
+        ("select", "ai_summary,ai_summary_hash,ai_summary_at".to_string()),
+        ("ptnum",  format!("eq.{}", ptnum)),
+        ("limit",  "1".to_string()),
+    ];
+    let res = reqwest::Client::new()
+        .get(format!("{}/rest/v1/{}", SUPABASE_URL, SUMMARY_TABLE))
+        .query(&params)
+        .header("apikey", SUPABASE_KEY)
+        .header("Authorization", format!("Bearer {}", SUPABASE_KEY))
+        .header("Accept", "application/json")
+        .send()
+        .await
+        .map_err(|e| e.to_string())?;
+    if !res.status().is_success() {
+        return Ok(None);
+    }
+    let rows: Vec<serde_json::Value> = res.json().await.map_err(|e| e.to_string())?;
+    Ok(rows
+        .into_iter()
+        .next()
+        .filter(|r| !r.get("ai_summary").map(|v| v.is_null()).unwrap_or(true)))
+}
+
+/// Persist a generated summary and the fingerprint of the clinical data it was
+/// built from, so it is only regenerated when that data changes.
+#[tauri::command]
+async fn save_patient_summary(ptnum: String, summary: String, hash: String) -> Result<(), String> {
+    let body = serde_json::json!({
+        "ptnum":           ptnum,
+        "ai_summary":      summary,
+        "ai_summary_hash": hash,
+        "ai_summary_at":   chrono::Utc::now().to_rfc3339(),
+    });
+    // Upsert: the row may not exist yet, so POST with merge-duplicates on ptnum.
+    let res = reqwest::Client::new()
+        .post(format!("{}/rest/v1/{}", SUPABASE_URL, SUMMARY_TABLE))
+        .header("apikey", SUPABASE_KEY)
+        .header("Authorization", format!("Bearer {}", SUPABASE_KEY))
+        .header("Content-Type", "application/json")
+        .header("Prefer", "resolution=merge-duplicates,return=minimal")
+        .json(&body)
+        .send()
+        .await
+        .map_err(|e| e.to_string())?;
+    if !res.status().is_success() {
+        return Err(format!("Supabase error: {}", res.text().await.unwrap_or_default()));
+    }
+    Ok(())
+}
+
+// Audio is forwarded (base64) to the Worker, which runs Whisper with its own
+// key — same pattern as the chat/summary calls, so no key lives in the binary.
 #[tauri::command]
 async fn transcribe_audio(
     audio_b64: String,
     mime_type: String,
     patient_id: String,
 ) -> Result<String, String> {
-    let key = OPENAI_API_KEY.unwrap_or("");
-    if key.is_empty() {
-        return Err("Whisper requires an OpenAI API key. Add OPENAI_API_KEY to desktop/src-tauri/.cargo/config.toml".to_string());
-    }
-    let bytes = general_purpose::STANDARD
-        .decode(&audio_b64)
-        .map_err(|e| format!("base64 decode: {}", e))?;
-
-    let ext = if mime_type.contains("webm")                          { "webm" }
-              else if mime_type.contains("mp4") || mime_type.contains("m4a") { "mp4"  }
-              else if mime_type.contains("ogg")                       { "ogg"  }
-              else                                                     { "wav"  };
-
-    let file_part = multipart::Part::bytes(bytes)
-        .file_name(format!("recording.{}", ext))
-        .mime_str(&mime_type)
-        .map_err(|e| e.to_string())?;
-
-    let form = multipart::Form::new()
-        .part("file", file_part)
-        .text("model", "whisper-1")
-        .text("prompt", format!(
-            "Clinical encounter for patient {}. Medical terminology: diagnoses, medications, \
-             dosages, vital signs, lab values. Terms: lung cancer, SCC score, hypertension, \
-             HbA1c, systolic, diastolic, metformin, atorvastatin, COPD, oncology, CT scan.",
-            patient_id
-        ));
-
     let res = reqwest::Client::new()
-        .post("https://api.openai.com/v1/audio/transcriptions")
-        .header("Authorization", format!("Bearer {}", key))
-        .multipart(form)
+        .post(format!("{}/api/transcribe", WORKER_URL))
+        .json(&serde_json::json!({
+            "audioB64":  audio_b64,
+            "mimeType":  mime_type,
+            "patientId": patient_id,
+        }))
         .send()
         .await
         .map_err(|e| e.to_string())?;
-
     if !res.status().is_success() {
-        return Err(res.text().await.unwrap_or_default());
+        return Err(format!("Worker error: {}", res.text().await.unwrap_or_default()));
     }
-    let json: serde_json::Value = res.json().await.map_err(|e| e.to_string())?;
-    Ok(json["text"].as_str().unwrap_or("").to_string())
+    let data: serde_json::Value = res.json().await.map_err(|e| e.to_string())?;
+    let text = data["text"].as_str().or_else(|| data["transcript"].as_str()).unwrap_or("");
+    Ok(text.to_string())
 }
 
 #[derive(Serialize, Deserialize)]
@@ -231,6 +266,8 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .invoke_handler(tauri::generate_handler![
             query_patients,
+            get_patient_summary,
+            save_patient_summary,
             transcribe_audio,
             save_note,
             load_notes,

@@ -188,4 +188,38 @@ app.post("/api/cohort-insights-desktop", async (c) => {
   }
 });
 
+// Desktop — visit audio transcription (Whisper). Audio comes in as base64 so the
+// key stays on the Worker; we forward it to Whisper as multipart and return text.
+app.post("/api/transcribe", async (c) => {
+  try {
+    const { audioB64, mimeType, patientId } = await c.req.json<{
+      audioB64: string;
+      mimeType?: string;
+      patientId?: string;
+    }>();
+
+    const bytes = Uint8Array.from(atob(audioB64), (ch) => ch.charCodeAt(0));
+    const ext = mimeType?.includes("webm") ? "webm"
+      : mimeType?.includes("mp4") || mimeType?.includes("m4a") ? "mp4"
+      : mimeType?.includes("ogg") ? "ogg"
+      : "wav";
+
+    const form = new FormData();
+    form.append("file", new File([bytes], `recording.${ext}`, { type: mimeType || "audio/webm" }));
+    form.append("model", "whisper-1");
+    form.append("prompt", `Clinical encounter for patient ${patientId ?? ""}. Medical terminology: diagnoses, medications, dosages, vital signs, lab values.`);
+
+    const res = await fetch("https://api.openai.com/v1/audio/transcriptions", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${getKey(c)}` },
+      body: form,
+    });
+    const data = (await res.json()) as { text?: string; error?: { message: string } };
+    if (!res.ok) throw new Error(data.error?.message ?? "Whisper error");
+    return c.json({ text: data.text ?? "" });
+  } catch (e: unknown) {
+    return c.json({ error: (e as Error).message }, 500);
+  }
+});
+
 export default app;

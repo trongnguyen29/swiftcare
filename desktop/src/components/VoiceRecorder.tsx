@@ -6,9 +6,10 @@ type Status = 'idle' | 'recording' | 'transcribing' | 'done' | 'error'
 interface Props {
   patientId: string | null
   onTranscript: (text: string) => void
+  startSignal?: number
 }
 
-export default function VoiceRecorder({ patientId, onTranscript }: Props) {
+export default function VoiceRecorder({ patientId, onTranscript, startSignal = 0 }: Props) {
   const [status, setStatus]     = useState<Status>('idle')
   const [duration, setDuration] = useState(0)
   const [error, setError]       = useState<string | null>(null)
@@ -62,6 +63,16 @@ export default function VoiceRecorder({ patientId, onTranscript }: Props) {
     drawFlat()
   }, [drawFlat])
 
+  // Start recording when triggered from outside (e.g. the banner button).
+  const handledSignal = useRef(0)
+  useEffect(() => {
+    if (startSignal && startSignal !== handledSignal.current) {
+      handledSignal.current = startSignal
+      if (status === 'idle' || status === 'done' || status === 'error') startRecording()
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [startSignal])
+
   async function startRecording() {
     setError(null)
     try {
@@ -108,7 +119,10 @@ export default function VoiceRecorder({ patientId, onTranscript }: Props) {
         onTranscript(text)
         setStatus('done')
       } catch (e: unknown) {
-        setError(e instanceof Error ? e.message : 'Transcription failed')
+        // Tauri rejects commands with a plain string, so surface that directly
+        // instead of collapsing it to a generic message.
+        const msg = e instanceof Error ? e.message : typeof e === 'string' ? e : 'Transcription failed'
+        setError(msg)
         setStatus('error')
       }
     }
@@ -167,13 +181,6 @@ export default function VoiceRecorder({ patientId, onTranscript }: Props) {
             <button className="btn-ghost" onClick={reset}>New Recording</button>
           )}
         </div>
-
-        {status === 'idle' && !patientId && (
-          <div className="rec-hint">Select a patient to begin</div>
-        )}
-        {status === 'idle' && patientId && (
-          <div className="rec-hint">Ready to record visit for {patientId}</div>
-        )}
       </div>
     </div>
   )

@@ -1,7 +1,18 @@
 import type { Patient } from './supabase'
 
+/** Stable 32-bit FNV-1a hash of a string, hex-encoded.
+ *  Used to fingerprint the summary's input so we know when to regenerate. */
+export function fingerprint(s: string): string {
+  let h = 0x811c9dc5
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i)
+    h = Math.imul(h, 0x01000193)
+  }
+  return (h >>> 0).toString(16)
+}
+
 export function buildPatientContext(p: Patient): string {
-  const name  = [p.first_name, p.middle_name, p.last_name].filter(Boolean).join(' ') || p.ptnum
+  const name  = [p.first_name, p.middle_name, p.last_name].filter(Boolean).join(' ').replace(/\d+/g, '').trim() || p.ptnum
   const meds  = (p.medications ?? []).filter(m => m.status === 'active')
     .map(m => `${m.name} ${m.dose ?? ''} (${m.frequency ?? ''})`).join(', ') || 'None'
   const probs = (p.problems ?? []).filter(pr => pr.status === 'active')

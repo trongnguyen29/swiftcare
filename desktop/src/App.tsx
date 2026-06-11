@@ -1,14 +1,16 @@
-import { useState, useRef, useEffect } from 'react'
+import type React from 'react'
+import { useState, useRef, useEffect, useMemo } from 'react'
 import PatientSearch from './components/PatientSearch'
 import PatientSummary from './components/PatientSummary'
 import PatientCharts from './components/PatientCharts'
-import AIInsights from './components/AIInsights'
+import PatientBanner from './components/PatientBanner'
+import { AIChat } from './components/AIInsights'
 import VoiceRecorder from './components/VoiceRecorder'
 import TranscriptPanel from './components/TranscriptPanel'
 import type { Patient } from './lib/supabase'
 import './App.css'
 
-type PatientTab = 'overview' | 'ai' | 'history' | 'charts' | 'visit'
+type PatientTab = 'overview' | 'chart' | 'visit'
 
 export default function App() {
   const [selected,   setSelected]   = useState<Patient | null>(null)
@@ -17,36 +19,116 @@ export default function App() {
   const [appFont, setAppFont]       = useState("'DM Sans', system-ui, sans-serif")
   const [fontScale, setFontScale]   = useState("1")
   const [showSettings, setShowSettings] = useState(false)
+  const [showChat, setShowChat] = useState(false)
+  const [recordSignal, setRecordSignal] = useState(0)
   const overviewCache = useRef<Map<string, string>>(new Map())
+  const scrollRef = useRef<HTMLDivElement>(null)
+  const sectionRefs = useRef<Record<string, HTMLElement | null>>({})
 
   useEffect(() => {
     document.documentElement.style.setProperty('--font', appFont)
     // Use zoom to cleanly scale the entire UI in WebKit
     // @ts-ignore - zoom is non-standard but works perfectly in Tauri/Webkit
     document.body.style.zoom = fontScale
+    // Expose the zoom so the shell can shrink its 100vh height to compensate —
+    // otherwise zoom > 1 pushes the bottom of the scroll area off-screen.
+    document.documentElement.style.setProperty('--zoom', fontScale)
   }, [appFont, fontScale])
 
   function selectPatient(p: Patient) {
     setSelected(p)
     setTranscript('')
     setActiveTab('overview')
+    setShowChat(false)
+    if (scrollRef.current) scrollRef.current.scrollTop = 0
   }
 
-  const isLC    = selected?.label === 1
-  const name    = selected ? [selected.first_name, selected.last_name].filter(Boolean).join(' ').replace(/\d+/g, '').trim() || selected.ptnum : ''
-  const subline = selected ? [selected.age ? `${selected.age}y` : null, selected.administrative_sex, selected.race].filter(Boolean).join(' · ') : ''
-
   const TABS: { id: PatientTab; label: string; icon: string }[] = [
-    { id: 'overview', label: 'Overview',    icon: '⊡' },
-    { id: 'ai',       label: 'AI Insights', icon: '✦' },
-    { id: 'history',  label: 'History',     icon: '📋' },
-    { id: 'charts',   label: 'Charts',      icon: '📊' },
-    { id: 'visit',    label: 'Visit',       icon: '🎙' },
+    { id: 'overview', label: 'Overview', icon: '⊡' },
+    { id: 'chart',    label: 'Chart',    icon: '▦' },
+    { id: 'visit',    label: 'Visit',    icon: '◉' },
   ]
+
+  // Scrollspy: the active section is the last one whose top has scrolled past a
+  // line ~30% down the viewport. Reading real positions each frame avoids the
+  // IntersectionObserver "only changed entries" flicker.
+  useEffect(() => {
+    const root = scrollRef.current
+    if (!root || !selected) return
+    let raf = 0
+    const update = () => {
+      raf = 0
+      const atBottom = root.scrollTop + root.clientHeight >= root.scrollHeight - 2
+      let current: PatientTab = TABS[0].id
+      if (atBottom) {
+        current = TABS[TABS.length - 1].id  // bottom always activates the last section
+      } else {
+        // Active = the section that straddles a line ~30% down the viewport.
+        // Spanning (top <= line < bottom) picks exactly one, so it never
+        // flickers between two sections at a boundary.
+        const line = root.getBoundingClientRect().top + root.clientHeight * 0.3
+        for (const t of TABS) {
+          const el = sectionRefs.current[t.id]
+          if (!el) continue
+          const r = el.getBoundingClientRect()
+          if (r.top <= line && r.bottom > line) { current = t.id; break }
+          if (r.top <= line) current = t.id  // fallback for gaps between sections
+        }
+      }
+      setActiveTab(prev => (prev === current ? prev : current))
+    }
+    const onScroll = () => { if (!raf) raf = requestAnimationFrame(update) }
+    root.addEventListener('scroll', onScroll, { passive: true })
+    update() // set initial state for the freshly selected patient
+    return () => { root.removeEventListener('scroll', onScroll); if (raf) cancelAnimationFrame(raf) }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selected])
+
+  function goToSection(id: PatientTab) {
+    setActiveTab(id)
+    sectionRefs.current[id]?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }
+
+  function onTabKey(e: React.KeyboardEvent, idx: number) {
+    if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return
+    e.preventDefault()
+    const next = e.key === 'ArrowRight' ? (idx + 1) % TABS.length : (idx - 1 + TABS.length) % TABS.length
+    goToSection(TABS[next].id)
+  }
+
+  // The scrolling sections don't depend on activeTab, so memoize them: a
+  // scroll-driven highlight change won't re-render the heavy section content.
+  const sections = useMemo(() => {
+    if (!selected) return null
+    return (
+      <div className="pt-sections" ref={scrollRef}>
+        <section className="pt-section" data-section="overview" ref={el => { sectionRefs.current.overview = el }}>
+          <PatientSummary
+            patient={selected}
+            section="overview"
+            cachedOverview={overviewCache.current.get(selected.ptnum)}
+            onOverviewGenerated={text => overviewCache.current.set(selected.ptnum, text)}
+          />
+        </section>
+
+        <section className="pt-section" data-section="chart" ref={el => { sectionRefs.current.chart = el }}>
+          <div className="pt-section-label">Charts</div>
+          <PatientCharts patient={selected} />
+          <PatientSummary patient={selected} section="chart" />
+        </section>
+
+        <section className="pt-section" data-section="visit" ref={el => { sectionRefs.current.visit = el }}>
+          <div className="pt-section-label">Visit</div>
+          <VoiceRecorder patientId={selected.ptnum} onTranscript={setTranscript} startSignal={recordSignal} />
+          <TranscriptPanel patient={selected} transcript={transcript} onClear={() => setTranscript('')} />
+        </section>
+      </div>
+    )
+  }, [selected, transcript, recordSignal])
 
   return (
     <div className="app-shell">
-      <header className="ehr-header">
+      <header className="ehr-header" data-tauri-drag-region>
         <div className="header-logo">
           <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ flexShrink: 0 }}>
             <path d="M6 26 C6 26 4 14 10 9 C16 4 26 5 27 6 C28 7 26 18 20 22 C14 26 6 26 6 26Z" fill="url(#sc-grad)" />
@@ -68,19 +150,10 @@ export default function App() {
         <div className="header-spacer" />
         <button
           className="settings-btn"
-          style={{ marginRight: selected ? 8 : 0 }}
           onClick={() => setShowSettings(!showSettings)}
         >
           {showSettings ? 'Close Settings' : 'Settings'}
         </button>
-        {selected && (
-          <div className="dr-chip">
-            <span style={{ fontFamily: 'var(--mono)', fontSize: 11 }}>{selected.ptnum}</span>
-            <span className={`badge ${isLC ? 'badge-danger' : 'badge-ok'}`} style={{ fontSize: 10 }}>
-              {isLC ? 'LC+' : 'Ctrl'}
-            </span>
-          </div>
-        )}
       </header>
 
       {showSettings && (
@@ -128,70 +201,53 @@ export default function App() {
             </div>
           ) : (
             <>
-              {/* ── Patient strip ── */}
-              <div className="pt-strip">
-                <div className="pt-strip-avatar">
-                  {selected.administrative_sex === 'Male' ? '♂' : selected.administrative_sex === 'Female' ? '♀' : '⊕'}
-                </div>
-                <div className="pt-strip-info">
-                  <div className="pt-strip-name">{name}</div>
-                  <div className="pt-strip-sub">{subline}</div>
-                </div>
-                <div className="pt-strip-badges">
-                  <span className={`badge ${isLC ? 'badge-danger' : 'badge-ok'}`}>
-                    {isLC ? '⚠ LC+' : '✓ Control'}
-                  </span>
-                  {selected.scc != null && <span className="badge badge-blue">SCC {selected.scc}</span>}
-                  {selected.tobacco_status === 'former' && <span className="badge badge-warn">Former Smoker</span>}
-                </div>
-                {selected.scc != null && (
-                  <div className="pt-strip-scc">
-                    <div className="pt-scc-label">SCC</div>
-                    <div className="pt-scc-val">{selected.scc}</div>
-                  </div>
-                )}
-              </div>
+              {/* ── Patient banner (single source of identity) ── */}
+              <PatientBanner
+                patient={selected}
+                onAskAI={() => setShowChat(true)}
+                onStartRecording={() => { goToSection('visit'); setRecordSignal(n => n + 1) }}
+              />
 
-              {/* ── Tab bar ── */}
-              <div className="pt-tabbar">
-                {TABS.map(t => (
+              {/* ── Section nav (scrollspy) ── */}
+              <div className="pt-tabbar" role="tablist" aria-label="Patient sections">
+                {TABS.map((t, i) => (
                   <button
                     key={t.id}
+                    role="tab"
+                    aria-selected={activeTab === t.id}
+                    tabIndex={activeTab === t.id ? 0 : -1}
                     className={`pt-tab ${activeTab === t.id ? 'pt-tab--active' : ''}`}
-                    onClick={() => setActiveTab(t.id)}
+                    onClick={() => goToSection(t.id)}
+                    onKeyDown={e => onTabKey(e, i)}
                   >
-                    <span className="pt-tab-icon">{t.icon}</span>
+                    <span className="pt-tab-icon" aria-hidden>{t.icon}</span>
                     {t.label}
-                    {t.id === 'ai' && <span className="pt-tab-ai-dot" />}
                   </button>
                 ))}
               </div>
 
-              {/* ── Tab content ── */}
-              <div className="pt-tab-content">
-                {activeTab === 'overview' && (
-                  <PatientSummary
-                    key={selected.ptnum}
-                    patient={selected}
-                    section="overview"
-                    cachedOverview={overviewCache.current.get(selected.ptnum)}
-                    onOverviewGenerated={text => overviewCache.current.set(selected.ptnum, text)}
-                  />
-                )}
-                {activeTab === 'ai'       && <AIInsights patient={selected} />}
-                {activeTab === 'history'  && <PatientSummary patient={selected} section="history" />}
-                {activeTab === 'charts'   && <PatientCharts patient={selected} />}
-                {activeTab === 'visit'    && (
-                  <>
-                    <VoiceRecorder patientId={selected.ptnum} onTranscript={setTranscript} />
-                    <TranscriptPanel patient={selected} transcript={transcript} onClear={() => setTranscript('')} />
-                  </>
-                )}
-              </div>
+              {/* ── Continuous scrolling sections (memoized) ── */}
+              {sections}
             </>
           )}
         </main>
       </div>
+
+      {/* ── Ask AI chat drawer ── */}
+      {selected && showChat && (
+        <div className="ai-drawer-overlay" onClick={() => setShowChat(false)}>
+          <aside className="ai-drawer" role="dialog" aria-label="Ask AI" onClick={e => e.stopPropagation()}>
+            <div className="ai-drawer-header">
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span className="ai-tag">AI</span>
+                <span className="card-title">Ask AI</span>
+              </div>
+              <button className="btn-ghost-sm" onClick={() => setShowChat(false)}>✕ Close</button>
+            </div>
+            <AIChat key={selected.ptnum} patient={selected} />
+          </aside>
+        </div>
+      )}
     </div>
   )
 }

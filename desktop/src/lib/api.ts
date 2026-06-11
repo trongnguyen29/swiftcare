@@ -13,6 +13,23 @@ export async function queryPatients(
   return rows.map(normalizeRow)
 }
 
+// ── Persisted AI patient summary (Rust → Supabase) ──
+export async function getPatientSummary(
+  ptnum: string,
+): Promise<{ summary: string; hash: string; at: string | null } | null> {
+  const row = await invoke<Record<string, unknown> | null>('get_patient_summary', { ptnum })
+  if (!row || row['ai_summary'] == null) return null
+  return {
+    summary: String(row['ai_summary']),
+    hash:    String(row['ai_summary_hash'] ?? ''),
+    at:      (row['ai_summary_at'] as string) ?? null,
+  }
+}
+
+export async function savePatientSummary(ptnum: string, summary: string, hash: string): Promise<void> {
+  await invoke('save_patient_summary', { ptnum, summary, hash })
+}
+
 // ── Voice transcription (Rust → OpenAI Whisper) ──
 function blobToBase64(blob: Blob): Promise<string> {
   return new Promise((resolve, reject) => {

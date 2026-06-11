@@ -1,54 +1,126 @@
-import { useState, useEffect } from 'react'
-import { chatWithPatientContext } from '../lib/api'
-import { buildPatientContext } from '../lib/patientContext'
+import { useState, useEffect, useRef, type ReactNode } from 'react'
+import { chatWithPatientContext, getPatientSummary, savePatientSummary } from '../lib/api'
+import { buildPatientContext, fingerprint } from '../lib/patientContext'
+import { RANGES, vitalStatus, statusClass, statusVar, formatRef, type VitalStatus } from '../lib/clinicalRanges'
+import { RiskRings } from './PatientCharts'
+import { AIFindings } from './AIInsights'
 import type { Patient } from '../lib/supabase'
 
 interface Props {
   patient: Patient
-  section?: 'overview' | 'history'
+  section?: 'overview' | 'chart'
   cachedOverview?: string
   onOverviewGenerated?: (text: string) => void
-}
-
-function vitalCls(val: number | null, type: string) {
-  if (val == null) return ''
-  if (type === 'sbp')   return val >= 130 ? 'high' : 'ok'
-  if (type === 'dbp')   return val >= 80  ? 'high' : 'ok'
-  if (type === 'hr')    return val > 100 || val < 60 ? 'high' : 'ok'
-  if (type === 'bmi')   return val >= 25  ? 'high' : 'ok'
-  if (type === 'chol')  return val >= 200 ? 'high' : 'ok'
-  if (type === 'ldl')   return val >= 130 ? 'high' : 'ok'
-  if (type === 'hba1c') return val >= 5.7 ? 'high' : 'ok'
-  if (type === 'egfr')  return val < 60   ? 'high' : 'ok'
-  if (type === 'spo2')  return val < 95   ? 'high' : 'ok'
-  return ''
-}
-
-function fmt(val: number | null, unit = '') {
-  return val == null ? '—' : `${val}${unit ? ' ' + unit : ''}`
 }
 
 const SEV_COLOR: Record<string, string> = {
   mild: 'var(--warn)', moderate: 'var(--warn)', severe: 'var(--danger)',
 }
 
-export default function PatientSummary({ patient: p, section, cachedOverview, onOverviewGenerated }: Props) {
-  const [aiOverview, setAiOverview]   = useState<string | null>(cachedOverview ?? null)
-  const [aiLoading,  setAiLoading]    = useState(false)
-  const [aiError,    setAiError]      = useState<string | null>(null)
-  const [generated,  setGenerated]    = useState(!!cachedOverview)
+/* Vital/lab fields that have reference ranges, in scan order. */
+const FLAG_FIELDS = [
+  'systolic_bp', 'diastolic_bp', 'heart_rate', 'oxygen_saturation', 'bmi',
+  'total_cholesterol', 'ldl', 'hdl', 'triglycerides', 'hba1c', 'glucose', 'egfr',
+] as const
 
-  const showOverview = !section || section === 'overview'
+function statusRank(s: VitalStatus): number {
+  return s === 'critical' ? 2 : s === 'borderline' ? 1 : 0
+}
 
+/* Reverse-chronological sort (newest first); nullish dates sort last. */
+function byDateDesc<T>(items: T[], getDate: (t: T) => string | null | undefined): T[] {
+  return [...items].sort((a, b) => (getDate(b) ?? '').localeCompare(getDate(a) ?? ''))
+}
+
+/* A plain titled detail card. */
+function Section({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <div className="card summary-card">
+      <div className="card-header"><span className="card-title">{title}</span></div>
+      {children}
+    </div>
+  )
+}
+
+/* Shows the first `max` items with a Show all / Show less toggle. */
+function CollapsibleList<T>({ items, max = 5, render }: { items: T[]; max?: number; render: (item: T, i: number) => ReactNode }) {
+  const [open, setOpen] = useState(false)
+  const shown = open ? items : items.slice(0, max)
+  return (
+    <>
+      {shown.map(render)}
+      {items.length > max && (
+        <button type="button" className="expand-btn" onClick={() => setOpen(o => !o)}>
+          {open ? 'Show less' : `Show all ${items.length}`}
+        </button>
+      )}
+    </>
+  )
+}
+
+/* A single labelled value with 3-tier coloring; nulls collapse to "Not recorded". */
+function ValueField({ label, val, unit, statusKey }: { label: string; val: number | null; unit?: string; statusKey?: string }) {
+  const status = statusKey ? vitalStatus(statusKey, val) : 'unknown'
+  const abnormal = status === 'borderline' || status === 'critical'
+  return (
+    <div className="info-field">
+      <span className="field-key">{label}</span>
+      {val == null ? (
+        <span className="not-recorded">Not recorded</span>
+      ) : (
+        <span className={`field-val ${statusClass(status)}`}>
+          {val}{unit ? ` ${unit}` : ''}
+          {abnormal && formatRef(statusKey!) && <span className="field-ref">{formatRef(statusKey!)}</span>}
+        </span>
+      )}
+    </div>
+  )
+}
+
+export default function PatientSummary({ patient: p, section = 'overview', cachedOverview, onOverviewGenerated }: Props) {
+  const [aiOverview, setAiOverview] = useState<string | null>(cachedOverview ?? null)
+  const [aiLoading,  setAiLoading]  = useState(false)
+  const [aiError,    setAiError]    = useState<string | null>(null)
+  const requestedFor = useRef<string | null>(cachedOverview ? p.ptnum : null)
+
+  const isOverview = section === 'overview'
+
+  // Resolve the brief for this patient:
+  //   session cache → stored summary (if clinical data unchanged) → generate.
+  // It is regenerated ONLY when the patient's clinical data changes — i.e. the
+  // fingerprint of the record differs from the stored one.
   useEffect(() => {
-    if (!cachedOverview && showOverview) {
-      generateOverview()
+    if (!isOverview) return
+    if (cachedOverview) {
+      setAiOverview(cachedOverview); setAiError(null)
+      requestedFor.current = p.ptnum
+      return
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+    if (requestedFor.current === p.ptnum) return  // already handling this patient (also dedupes StrictMode)
+    const myPtnum = p.ptnum
+    requestedFor.current = myPtnum
+    setAiOverview(null); setAiError(null); setAiLoading(true)
 
+    ;(async () => {
+      let stored: Awaited<ReturnType<typeof getPatientSummary>> = null
+      try { stored = await getPatientSummary(myPtnum) } catch { /* e.g. pre-migration — generate instead */ }
+      if (requestedFor.current !== myPtnum) return  // a newer patient took over
+
+      const fp = fingerprint(buildPatientContext(p))
+      if (stored && stored.hash === fp) {
+        // Clinical data unchanged → reuse the stored summary, no generation.
+        setAiOverview(stored.summary); setAiLoading(false)
+        onOverviewGenerated?.(stored.summary)
+        return
+      }
+      await generateOverview()  // data changed or none stored → generate + persist
+    })()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [p.ptnum])
 
   async function generateOverview() {
+    const myPtnum = p.ptnum
+    const context = buildPatientContext(p)
     setAiLoading(true); setAiError(null)
     try {
       const reply = await chatWithPatientContext(
@@ -65,367 +137,314 @@ STRICT RULES:
 - No hedging ("it appears", "may be") — be direct and assertive
 - No headers, no bullets — three sentences of flowing prose only
 - Under 90 words total` }],
-        buildPatientContext(p),
+        context,
       )
+      if (requestedFor.current !== myPtnum) return  // patient switched mid-flight
       setAiOverview(reply)
-      setGenerated(true)
       onOverviewGenerated?.(reply)
+      // Persist with the fingerprint of the data it was built from, so it is
+      // reused until that data changes (fire-and-forget — UI already updated).
+      savePatientSummary(myPtnum, reply, fingerprint(context)).catch(() => {})
     } catch (e: unknown) {
+      if (requestedFor.current !== myPtnum) return
       setAiError(e instanceof Error ? e.message : String(e))
     } finally {
-      setAiLoading(false)
+      if (requestedFor.current === myPtnum) setAiLoading(false)
     }
   }
 
-  const showHistory  = !section || section === 'history'
-  const sccPct = p.scc ? Math.min(100, Math.round((p.scc / 172) * 100)) : 0
-  const isLC   = p.label === 1
+  /* ── Exception-first flags: only abnormal measured values ── */
+  const flags = FLAG_FIELDS
+    .map(key => ({ key, label: RANGES[key].label, unit: RANGES[key].unit, val: p[key] as number | null, status: vitalStatus(key, p[key] as number | null) }))
+    .filter(f => f.status === 'borderline' || f.status === 'critical')
+    .sort((a, b) => statusRank(b.status) - statusRank(a.status))
 
-  const risks = [
-    p.tobacco_status === 'former'                              && 'Former smoker',
-    p.systolic_bp != null && p.systolic_bp >= 140             && `HTN (SBP ${p.systolic_bp})`,
-    p.bmi != null && p.bmi >= 30                              && `Obese (BMI ${p.bmi})`,
-    p.total_cholesterol != null && p.total_cholesterol >= 200 && `High chol. (${p.total_cholesterol})`,
-    p.hba1c != null && p.hba1c >= 5.7                        && `Elevated HbA1c (${p.hba1c}%)`,
-    p.egfr != null && p.egfr < 60                            && `CKD (eGFR ${p.egfr})`,
-    p.age != null && p.age > 60                              && `Age > 60`,
-    p.sdoh_veteran_status                                     && 'Veteran',
-  ].filter(Boolean) as string[]
+  const measuredCount = FLAG_FIELDS.filter(k => (p[k] as number | null) != null).length
 
-  const displayName = [p.first_name, p.middle_name, p.last_name].filter(Boolean).join(' ').replace(/\d+/g, '').trim() || p.ptnum
+  /* Compact vitals/labs — only measured fields are shown (Overview). */
+  const vitals = ([
+    { label: 'Systolic BP',  val: p.systolic_bp,       unit: 'mmHg', key: 'systolic_bp'      },
+    { label: 'Diastolic BP', val: p.diastolic_bp,      unit: 'mmHg', key: 'diastolic_bp'     },
+    { label: 'Heart Rate',   val: p.heart_rate,        unit: 'bpm',  key: 'heart_rate'       },
+    { label: 'Resp. Rate',   val: p.respiratory_rate,  unit: '/min', key: undefined          },
+    { label: 'SpO₂',         val: p.oxygen_saturation, unit: '%',    key: 'oxygen_saturation'},
+    { label: 'Temp.',        val: p.temperature_c,     unit: '°C',   key: undefined          },
+    { label: 'BMI',          val: p.bmi,               unit: '',     key: 'bmi'              },
+    { label: 'Pain Score',   val: p.pain_score,        unit: '/ 10', key: undefined          },
+  ] as const).filter(v => v.val != null)
 
-  return (
-    <div className="summary-wrap">
+  const labs = ([
+    { label: 'Total Cholesterol', val: p.total_cholesterol, unit: 'mg/dL', key: 'total_cholesterol' },
+    { label: 'LDL',               val: p.ldl,               unit: 'mg/dL', key: 'ldl'               },
+    { label: 'HDL',               val: p.hdl,               unit: 'mg/dL', key: 'hdl'               },
+    { label: 'Triglycerides',     val: p.triglycerides,     unit: 'mg/dL', key: 'triglycerides'     },
+    { label: 'HbA1c',             val: p.hba1c,             unit: '%',     key: 'hba1c'             },
+    { label: 'Glucose',           val: p.glucose,           unit: 'mg/dL', key: 'glucose'           },
+    { label: 'Creatinine',        val: p.creatinine,        unit: 'mg/dL', key: undefined           },
+    { label: 'eGFR',              val: p.egfr,              unit: 'mL/min',key: 'egfr'              },
+    { label: 'Hemoglobin',        val: p.hemoglobin,        unit: 'g/dL',  key: undefined           },
+  ] as const).filter(v => v.val != null)
 
-      {/* ── Hero (overview only) ── */}
-      {showOverview && <div className="summary-hero">
-        <div className="hero-avatar">{p.administrative_sex === 'Male' ? '♂' : p.administrative_sex === 'Female' ? '♀' : '⊕'}</div>
-        <div className="hero-info">
-          <div className="hero-id">{displayName}</div>
-          <div style={{ fontFamily: 'var(--mono)', fontSize: 11, opacity: .75, marginTop: 1 }}>{p.ptnum}</div>
-          <div className="hero-sub">
-            {p.age ? `${p.age}y` : '—'} · {p.administrative_sex ?? '—'} · {p.race ?? '—'} · {p.preferred_language ?? '—'}
-          </div>
-          <div className="hero-badges">
-            <span className={`badge ${isLC ? 'badge-danger' : 'badge-ok'}`}>
-              {isLC ? '⚠ LC Positive' : '✓ Control'}
-            </span>
-            {p.scc != null && <span className="badge badge-blue">SCC {p.scc}</span>}
-            {p.tobacco_status === 'former' && <span className="badge badge-warn">Former Smoker</span>}
-            {p.sdoh_veteran_status && <span className="badge badge-blue">Veteran</span>}
-          </div>
-        </div>
-        <div className="hero-scc">
-          <div className="scc-label">SCC Score</div>
-          <div className="scc-big">{p.scc ?? '—'}</div>
-          <div className="scc-bar-wrap" style={{ width: 120 }}>
-            <div className="scc-bar-fill" style={{ width: `${sccPct}%` }} />
-          </div>
-        </div>
-      </div>}
+  const activeProblems = byDateDesc((p.problems ?? []).filter(pr => pr.status === 'active'), x => x.onset_date)
 
-      {/* ── AI Overview (overview only) ── */}
-      {showOverview && (
-        <div className="card" style={{ marginBottom: 2 }}>
-          <div className="card-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span style={{ background: 'var(--blue-600)', color: '#fff', fontSize: 9, fontWeight: 700, padding: '2px 6px', borderRadius: 4, letterSpacing: '.5px' }}>AI</span>
-              <span className="card-title">Patient Overview</span>
-            </div>
-            <button
-              onClick={generateOverview}
-              disabled={aiLoading}
-              style={{ padding: '5px 12px', fontSize: 11, fontWeight: 600, borderRadius: 7, border: 'none', cursor: aiLoading ? 'not-allowed' : 'pointer', background: aiLoading ? 'var(--bg-muted)' : 'var(--blue-600)', color: aiLoading ? 'var(--text-faint)' : '#fff' }}
-            >
-              {aiLoading ? 'Generating…' : generated ? 'Regenerate' : '✦ Generate Overview'}
-            </button>
-          </div>
-          {aiError && (
-            <div style={{ margin: '0 16px 12px', padding: '8px 12px', background: 'var(--danger-bg)', border: '1px solid var(--danger-bdr)', borderRadius: 6, fontSize: 12, color: 'var(--danger)' }}>
-              ⚠ {aiError}
+  /* ───────────────────────── Overview ───────────────────────── */
+  if (isOverview) {
+    return (
+      <div className="summary-wrap">
+
+        {/* Clinical attention bar — slim, reads well with 1 or many flags */}
+        <div className={`attention attention--${flags.some(f => f.status === 'critical') ? 'critical' : flags.length ? 'warn' : 'ok'}`}>
+          <span className="attention-icon">{flags.length ? '⚠' : '✓'}</span>
+          <span className="attention-title">
+            {flags.length
+              ? `${flags.length} value${flags.length > 1 ? 's' : ''} need${flags.length > 1 ? '' : 's'} attention`
+              : measuredCount > 0 ? 'All measured values within range' : 'No vitals or labs recorded'}
+          </span>
+          {flags.length > 0 && (
+            <div className="attention-items">
+              {flags.map(f => (
+                <span key={f.key} className="attention-item" style={{ color: statusVar(f.status) }}>
+                  <span className="attention-item-label">{f.label}</span>
+                  {f.val}{f.unit ? ` ${f.unit}` : ''}
+                </span>
+              ))}
             </div>
           )}
-          {aiOverview && !aiLoading && (
+        </div>
+
+        {/* AI handoff brief */}
+        <div className="card">
+          <div className="card-header">
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span className="ai-tag">AI</span>
+              <span className="card-title">Patient Overview</span>
+            </div>
+            {aiLoading && <span style={{ fontSize: 11, color: 'var(--text-faint)' }}>Generating…</span>}
+          </div>
+          {aiError && <div className="inline-error">⚠ {aiError}</div>}
+          {aiLoading && !aiOverview && <div className="ai-skeleton"><span /><span /><span /></div>}
+          {aiOverview && (
             <div style={{ padding: '4px 20px 16px' }}>
-              <p style={{ margin: 0, fontSize: 13, lineHeight: 1.7, color: 'var(--text-body)' }}>{aiOverview}</p>
-              <div style={{ marginTop: 10, fontSize: 10, color: 'var(--text-faint)' }}>
-                AI-generated clinical summary — for decision support only. Always apply professional judgment.
-              </div>
+              <p className="ai-brief-text">{aiOverview}</p>
+              <div className="ai-disclaimer">AI-generated clinical summary — for decision support only. Always apply professional judgment.</div>
             </div>
           )}
           {!aiOverview && !aiLoading && !aiError && (
-            <div style={{ padding: '16px 20px', fontSize: 12, color: 'var(--text-faint)', textAlign: 'center' }}>
-              Click <strong style={{ color: 'var(--text-muted)' }}>Generate Overview</strong> for an AI-drafted clinical summary of this patient.
-            </div>
+            <div className="card-empty">Preparing clinical summary…</div>
           )}
         </div>
-      )}
 
-      {/* ── Vitals · Labs · Risk (overview) ── */}
-      {showOverview && <div className="summary-cols">
-        <div className="card summary-card">
-          <div className="card-header"><span className="card-title">Vital Signs</span></div>
-          <div className="summary-fields">
-            {([
-              { label: 'Systolic BP',   val: p.systolic_bp,      unit: 'mmHg', type: 'sbp'  },
-              { label: 'Diastolic BP',  val: p.diastolic_bp,     unit: 'mmHg', type: 'dbp'  },
-              { label: 'Heart Rate',    val: p.heart_rate,       unit: 'bpm',  type: 'hr'   },
-              { label: 'Resp. Rate',    val: p.respiratory_rate, unit: '/min', type: ''     },
-              { label: 'SpO₂',          val: p.oxygen_saturation,unit: '%',   type: 'spo2' },
-              { label: 'Temp.',         val: p.temperature_c,    unit: '°C',   type: ''     },
-              { label: 'BMI',           val: p.bmi,              unit: '',     type: 'bmi'  },
-              { label: 'Height',        val: p.height_cm,        unit: 'cm',   type: ''     },
-              { label: 'Weight',        val: p.weight_kg,        unit: 'kg',   type: ''     },
-              { label: 'Pain Score',    val: p.pain_score,       unit: '/ 10', type: ''     },
-            ] as const).map(v => {
-              const cls = vitalCls(v.val as number | null, v.type)
-              return (
-                <div key={v.label} className="info-field">
-                  <span className="field-key">{v.label}</span>
-                  <span className={`field-val ${cls === 'ok' ? 'val-ok' : cls === 'high' ? 'val-high' : ''}`}>
-                    {fmt(v.val as number | null, v.unit)}
-                  </span>
-                </div>
-              )
-            })}
-          </div>
-        </div>
-
-        <div className="card summary-card">
-          <div className="card-header"><span className="card-title">Labs</span></div>
-          <div className="summary-fields">
-            {([
-              { label: 'Total Cholesterol', val: p.total_cholesterol, unit: 'mg/dL', type: 'chol'  },
-              { label: 'LDL',               val: p.ldl,               unit: 'mg/dL', type: 'ldl'   },
-              { label: 'HDL',               val: p.hdl,               unit: 'mg/dL', type: ''      },
-              { label: 'Triglycerides',     val: p.triglycerides,     unit: 'mg/dL', type: ''      },
-              { label: 'HbA1c',             val: p.hba1c,             unit: '%',     type: 'hba1c' },
-              { label: 'Glucose',           val: p.glucose,           unit: 'mg/dL', type: ''      },
-              { label: 'Creatinine',        val: p.creatinine,        unit: 'mg/dL', type: ''      },
-              { label: 'eGFR',              val: p.egfr,              unit: 'mL/min',type: 'egfr'  },
-              { label: 'Hemoglobin',        val: p.hemoglobin,        unit: 'g/dL',  type: ''      },
-              { label: 'WBC',               val: p.wbc,               unit: 'K/µL',  type: ''      },
-              { label: 'Platelets',         val: p.platelets,         unit: 'K/µL',  type: ''      },
-            ] as const).map(v => {
-              const cls = vitalCls(v.val as number | null, v.type)
-              return (
-                <div key={v.label} className="info-field">
-                  <span className="field-key">{v.label}</span>
-                  <span className={`field-val ${cls === 'ok' ? 'val-ok' : cls === 'high' ? 'val-high' : ''}`}>
-                    {fmt(v.val as number | null, v.unit)}
-                  </span>
-                </div>
-              )
-            })}
-          </div>
-        </div>
-
-        <div className="card summary-card">
-          <div className="card-header"><span className="card-title">Risk Factors</span></div>
-          <div className="summary-fields">
-            {risks.length === 0 && (
-              <div style={{ padding: '12px 16px', color: 'var(--text-faint)', fontSize: 12 }}>No significant risk factors</div>
-            )}
-            {risks.map(r => (
-              <div key={r} className="risk-item">
-                <span className="risk-dot" />
-                <span>{r}</span>
+        {/* Overview cards — 3 columns × 2 rows */}
+        <div className="summary-cols">
+          <div className="card risk-rings-card">
+            <div className="card-header"><span className="card-title">Risk Overview</span></div>
+            <div className="risk-rings-row">
+              <RiskRings patient={p} />
+              <div className="risk-rings-legend">
+                <div className="rings-legend-item"><span style={{ color: 'var(--ok)' }}>●</span> Low (0–29)</div>
+                <div className="rings-legend-item"><span style={{ color: 'var(--warn)' }}>●</span> Moderate (30–59)</div>
+                <div className="rings-legend-item"><span style={{ color: 'var(--danger)' }}>●</span> High (60+)</div>
+                <div style={{ marginTop: 6, fontSize: 10, color: 'var(--text-faint)' }}>Scores derived from current vitals &amp; labs</div>
               </div>
-            ))}
-            <div className="info-field" style={{ marginTop: 4 }}>
-              <span className="field-key">Marital</span>
-              <span className="field-val" style={{ textTransform: 'capitalize', fontFamily: 'var(--font)' }}>
-                {p.marital === 'm' ? 'Married' : p.marital === 's' ? 'Single' : p.marital ?? '—'}
-              </span>
-            </div>
-            <div className="info-field">
-              <span className="field-key">Language</span>
-              <span className="field-val" style={{ fontFamily: 'var(--font)' }}>{p.preferred_language ?? '—'}</span>
-            </div>
-            <div className="info-field">
-              <span className="field-key">State</span>
-              <span className="field-val" style={{ fontFamily: 'var(--font)' }}>{p.state ?? '—'}</span>
-            </div>
-            <div className="info-field">
-              <span className="field-key">Ethnicity</span>
-              <span className="field-val" style={{ fontFamily: 'var(--font)', textTransform: 'capitalize' }}>{p.ethnicity ?? '—'}</span>
             </div>
           </div>
-        </div>
-      </div>}
 
-      {/* ── Problems · Medications · Allergies (history) ── */}
-      {showHistory && <div className="summary-cols">
+          <AIFindings patient={p} />
 
-        {/* Active Problems */}
-        <div className="card summary-card">
-          <div className="card-header"><span className="card-title">Problems / Conditions</span></div>
-          <div className="summary-fields">
-            {(p.problems ?? []).length === 0 && (
-              <div style={{ padding: '10px 14px', color: 'var(--text-faint)', fontSize: 12 }}>No problems recorded</div>
-            )}
-            {(p.problems ?? []).map((prob, i) => (
-              <div key={i} className="info-field" style={{ flexDirection: 'column', alignItems: 'flex-start', gap: 2 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%' }}>
-                  <span className="field-key" style={{ maxWidth: '70%' }}>{prob.display}</span>
-                  <span className={`badge ${prob.status === 'active' ? 'badge-danger' : 'badge-ok'}`} style={{ fontSize: 9 }}>
-                    {prob.status}
-                  </span>
-                </div>
-                <div style={{ fontSize: 10, color: 'var(--text-faint)', fontFamily: 'var(--mono)' }}>
-                  {prob.icd10_code} · since {prob.onset_date?.substring(0, 7)}
-                </div>
-              </div>
-            ))}
+          <div className="card summary-card">
+            <div className="card-header"><span className="card-title">Active Problems</span></div>
+            <div className="summary-fields">
+              {activeProblems.length === 0 && <div className="card-empty-sm">No active problems recorded</div>}
+              <CollapsibleList
+                items={activeProblems}
+                render={(prob, i) => (
+                  <div key={i} className="risk-item"><span className="risk-dot" /><span>{prob.display}</span></div>
+                )}
+              />
+            </div>
           </div>
-        </div>
 
-        {/* Medications */}
-        <div className="card summary-card">
-          <div className="card-header"><span className="card-title">Medications</span></div>
-          <div className="summary-fields">
-            {(p.medications ?? []).length === 0 && (
-              <div style={{ padding: '10px 14px', color: 'var(--text-faint)', fontSize: 12 }}>No medications recorded</div>
-            )}
-            {(p.medications ?? []).map((med, i) => (
-              <div key={i} className="info-field" style={{ flexDirection: 'column', alignItems: 'flex-start', gap: 2 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%' }}>
-                  <span className="field-key" style={{ fontWeight: 600 }}>{med.name} {med.dose}</span>
-                  <span className={`badge ${med.status === 'active' ? 'badge-blue' : 'badge-ok'}`} style={{ fontSize: 9 }}>
-                    {med.status}
-                  </span>
-                </div>
-                <div style={{ fontSize: 10, color: 'var(--text-faint)' }}>
-                  {med.route} · {med.frequency}
-                </div>
-              </div>
-            ))}
+          <div className="card summary-card">
+            <div className="card-header"><span className="card-title">Vital Signs</span></div>
+            <div className="summary-fields">
+              {vitals.length === 0 && <div className="card-empty-sm">Not recorded</div>}
+              {vitals.map(v => <ValueField key={v.label} label={v.label} val={v.val} unit={v.unit} statusKey={v.key} />)}
+            </div>
           </div>
-        </div>
 
-        {/* Allergies */}
-        <div className="card summary-card">
-          <div className="card-header"><span className="card-title">Allergies &amp; Intolerances</span></div>
-          <div className="summary-fields">
-            {(p.allergies ?? []).length === 0 && (
-              <div style={{ padding: '10px 14px', color: 'var(--ok)', fontSize: 12 }}>✓ No known allergies</div>
-            )}
-            {(p.allergies ?? []).map((a, i) => (
-              <div key={i} className="info-field" style={{ flexDirection: 'column', alignItems: 'flex-start', gap: 2 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%' }}>
+          <div className="card summary-card">
+            <div className="card-header"><span className="card-title">Labs</span></div>
+            <div className="summary-fields">
+              {labs.length === 0 && <div className="card-empty-sm">Not recorded</div>}
+              {labs.map(v => <ValueField key={v.label} label={v.label} val={v.val} unit={v.unit} statusKey={v.key} />)}
+            </div>
+          </div>
+
+          <div className="card summary-card">
+            <div className="card-header"><span className="card-title">Allergies</span></div>
+            <div className="summary-fields">
+              {(p.allergies ?? []).length === 0 && <div className="card-empty-sm" style={{ color: 'var(--ok)' }}>✓ No known allergies</div>}
+              {(p.allergies ?? []).map((a, i) => (
+                <div key={i} className="info-field">
                   <span className="field-key" style={{ fontWeight: 600 }}>{a.substance}</span>
-                  <span style={{ fontSize: 10, color: SEV_COLOR[a.severity] ?? 'var(--text-muted)', fontWeight: 600 }}>
-                    {a.severity}
-                  </span>
+                  <span style={{ fontSize: 11, color: SEV_COLOR[a.severity] ?? 'var(--text-muted)', fontWeight: 600 }}>{a.severity}</span>
                 </div>
-                <div style={{ fontSize: 10, color: 'var(--text-faint)' }}>
-                  {a.reaction} · {a.type}
-                </div>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
         </div>
-      </div>}
+      </div>
+    )
+  }
 
-      {/* ── SDOH · Insurance · Care Team (history) ── */}
-      {showHistory && <div className="summary-cols">
+  /* ───────────────────────── Chart (full detail) ───────────────────────── */
+  return (
+    <div className="summary-wrap">
 
-        {/* SDOH */}
-        <div className="card summary-card">
-          <div className="card-header"><span className="card-title">Social Determinants (SDOH)</span></div>
+      {/* Problems · Medications · Allergies */}
+      <div className="summary-cols">
+        <Section title="Problems / Conditions">
           <div className="summary-fields">
-            {([
-              { label: 'Education',       val: p.sdoh_education_level },
-              { label: 'Financial strain',val: p.sdoh_financial_strain },
-              { label: 'Housing',         val: p.sdoh_housing_status },
-              { label: 'Transport',       val: p.sdoh_transportation_insecurity === true ? 'Insecure' : p.sdoh_transportation_insecurity === false ? 'Secure' : '—' },
-              { label: 'Social isolation',val: p.sdoh_social_isolation },
-              { label: 'Veteran',         val: p.sdoh_veteran_status === true ? 'Yes' : p.sdoh_veteran_status === false ? 'No' : '—' },
-              { label: 'Functional',      val: p.functional_status },
-              { label: 'Mental/Cognitive',val: p.mental_cognitive_status },
-            ]).map(r => (
-              <div key={r.label} className="info-field">
-                <span className="field-key">{r.label}</span>
-                <span className="field-val" style={{ fontFamily: 'var(--font)', fontSize: 11, textAlign: 'right', maxWidth: '55%' }}>
-                  {r.val ?? '—'}
-                </span>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Insurance */}
-        <div className="card summary-card">
-          <div className="card-header"><span className="card-title">Health Insurance</span></div>
-          <div className="summary-fields">
-            {!p.insurance && (
-              <div style={{ padding: '10px 14px', color: 'var(--text-faint)', fontSize: 12 }}>No insurance on file</div>
-            )}
-            {p.insurance && ([
-              { label: 'Status',        val: p.insurance.coverage_status },
-              { label: 'Type',          val: p.insurance.coverage_type },
-              { label: 'Payer',         val: p.insurance.payer },
-              { label: 'Member ID',     val: p.insurance.member_id },
-              { label: 'Group ID',      val: p.insurance.group_id ?? '—' },
-              { label: 'Relationship',  val: p.insurance.relationship_to_subscriber },
-            ]).map(r => (
-              <div key={r.label} className="info-field">
-                <span className="field-key">{r.label}</span>
-                <span className="field-val" style={{ fontFamily: 'var(--font)', fontSize: 11, textAlign: 'right', maxWidth: '55%', textTransform: 'capitalize' }}>
-                  {r.val}
-                </span>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Care Team */}
-        <div className="card summary-card">
-          <div className="card-header"><span className="card-title">Care Team</span></div>
-          <div className="summary-fields">
-            {(p.care_team ?? []).length === 0 && (
-              <div style={{ padding: '10px 14px', color: 'var(--text-faint)', fontSize: 12 }}>No care team recorded</div>
-            )}
-            {(p.care_team ?? []).map((ct, i) => (
-              <div key={i} className="info-field" style={{ flexDirection: 'column', alignItems: 'flex-start', gap: 2 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%' }}>
-                  <span className="field-key" style={{ fontWeight: 600 }}>{ct.name}</span>
-                  <span className="badge badge-blue" style={{ fontSize: 9 }}>{ct.role}</span>
-                </div>
-                {ct.phone && <div style={{ fontSize: 10, color: 'var(--text-faint)' }}>{ct.phone}</div>}
-                {ct.organization && <div style={{ fontSize: 10, color: 'var(--text-faint)' }}>{ct.organization}</div>}
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>}
-
-      {/* ── Goals · Assessment Plan (history) ── */}
-      {showHistory && (p.goals?.length || p.assessment_plan) && (
-        <div className="summary-cols" style={{ gridTemplateColumns: p.goals?.length ? '1fr 2fr' : '1fr' }}>
-          {p.goals?.length > 0 && (
-            <div className="card summary-card">
-              <div className="card-header"><span className="card-title">Patient Goals</span></div>
-              <div className="summary-fields">
-                {p.goals.map((g, i) => (
-                  <div key={i} className="risk-item" style={{ color: 'var(--navy-600, var(--blue-600))' }}>
-                    <span style={{ color: 'var(--teal-500)' }}>→</span>
-                    <span style={{ fontSize: 11 }}>{g}</span>
+            {(p.problems ?? []).length === 0 && <div className="card-empty-sm">No data for this patient</div>}
+            <CollapsibleList
+              items={byDateDesc(p.problems ?? [], x => x.onset_date)}
+              render={(prob, i) => (
+                <div key={i} className="info-field" style={{ flexDirection: 'column', alignItems: 'flex-start', gap: 2 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%' }}>
+                    <span className="field-key" style={{ maxWidth: '70%' }}>{prob.display}</span>
+                    <span className={`badge ${prob.status === 'active' ? 'badge-danger' : 'badge-ok'}`} style={{ fontSize: 9 }}>{prob.status}</span>
                   </div>
-                ))}
+                  <div style={{ fontSize: 10, color: 'var(--text-faint)', fontFamily: 'var(--mono)' }}>
+                    {prob.icd10_code} · since {prob.onset_date?.substring(0, 7)}
+                  </div>
+                </div>
+              )}
+            />
+          </div>
+        </Section>
+
+        <Section title="Medications">
+          <div className="summary-fields">
+            {(p.medications ?? []).length === 0 && <div className="card-empty-sm">No data for this patient</div>}
+            <CollapsibleList
+              items={byDateDesc(p.medications ?? [], x => x.start_date)}
+              render={(med, i) => (
+                <div key={i} className="info-field" style={{ flexDirection: 'column', alignItems: 'flex-start', gap: 2 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%' }}>
+                    <span className="field-key" style={{ fontWeight: 600 }}>{med.name} {med.dose}</span>
+                    <span className={`badge ${med.status === 'active' ? 'badge-blue' : 'badge-ok'}`} style={{ fontSize: 9 }}>{med.status}</span>
+                  </div>
+                  <div style={{ fontSize: 10, color: 'var(--text-faint)' }}>{med.route} · {med.frequency}</div>
+                </div>
+              )}
+            />
+          </div>
+        </Section>
+
+        <Section title="Allergies & Intolerances">
+          <div className="summary-fields">
+            {(p.allergies ?? []).length === 0 && <div className="card-empty-sm" style={{ color: 'var(--ok)' }}>✓ No known allergies</div>}
+            <CollapsibleList
+              items={byDateDesc(p.allergies ?? [], x => x.onset_date)}
+              render={(a, i) => (
+                <div key={i} className="info-field" style={{ flexDirection: 'column', alignItems: 'flex-start', gap: 2 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%' }}>
+                    <span className="field-key" style={{ fontWeight: 600 }}>{a.substance}</span>
+                    <span style={{ fontSize: 10, color: SEV_COLOR[a.severity] ?? 'var(--text-muted)', fontWeight: 600 }}>{a.severity}</span>
+                  </div>
+                  <div style={{ fontSize: 10, color: 'var(--text-faint)' }}>{a.reaction} · {a.type}</div>
+                </div>
+              )}
+            />
+          </div>
+        </Section>
+      </div>
+
+      {/* SDOH · Insurance · Care Team */}
+      <div className="summary-cols">
+        <Section title="Social Determinants (SDOH)">
+          <div className="summary-fields">
+            {(() => {
+              const rows = ([
+                { label: 'Education',        val: p.sdoh_education_level },
+                { label: 'Financial strain', val: p.sdoh_financial_strain },
+                { label: 'Housing',          val: p.sdoh_housing_status },
+                { label: 'Transport',        val: p.sdoh_transportation_insecurity === true ? 'Insecure' : p.sdoh_transportation_insecurity === false ? 'Secure' : null },
+                { label: 'Social isolation', val: p.sdoh_social_isolation },
+                { label: 'Veteran',          val: p.sdoh_veteran_status === true ? 'Yes' : p.sdoh_veteran_status === false ? 'No' : null },
+                { label: 'Functional',       val: p.functional_status },
+                { label: 'Mental/Cognitive', val: p.mental_cognitive_status },
+              ]).filter(r => r.val != null) as { label: string; val: string }[]
+              if (rows.length === 0) return <div className="card-empty-sm">No data for this patient</div>
+              return rows.map(r => (
+                <div key={r.label} className="info-field">
+                  <span className="field-key">{r.label}</span>
+                  <span className="field-val" style={{ fontFamily: 'var(--font)', fontSize: 11, textAlign: 'right', maxWidth: '55%' }}>{r.val}</span>
+                </div>
+              ))
+            })()}
+          </div>
+        </Section>
+
+        <Section title="Health Insurance">
+          <div className="summary-fields">
+            {!p.insurance && <div className="card-empty-sm">No data for this patient</div>}
+            {p.insurance && ([
+              { label: 'Status',       val: p.insurance.coverage_status },
+              { label: 'Type',         val: p.insurance.coverage_type },
+              { label: 'Payer',        val: p.insurance.payer },
+              { label: 'Member ID',    val: p.insurance.member_id },
+              { label: 'Group ID',     val: p.insurance.group_id },
+              { label: 'Relationship', val: p.insurance.relationship_to_subscriber },
+            ]).filter(r => r.val != null && r.val !== '').map(r => (
+              <div key={r.label} className="info-field">
+                <span className="field-key">{r.label}</span>
+                <span className="field-val" style={{ fontFamily: 'var(--font)', fontSize: 11, textAlign: 'right', maxWidth: '55%', textTransform: 'capitalize' }}>{r.val}</span>
               </div>
-            </div>
-          )}
-          {p.assessment_plan && (
-            <div className="card summary-card">
-              <div className="card-header"><span className="card-title">Assessment &amp; Plan</span></div>
-              <div style={{ padding: '10px 14px', fontSize: 12, color: 'var(--text-body)', lineHeight: 1.6 }}>
-                {p.assessment_plan}
+            ))}
+          </div>
+        </Section>
+
+        <Section title="Care Team">
+          <div className="summary-fields">
+            {(p.care_team ?? []).length === 0 && <div className="card-empty-sm">No data for this patient</div>}
+            <CollapsibleList
+              items={p.care_team ?? []}
+              render={(ct, i) => (
+                <div key={i} className="info-field" style={{ flexDirection: 'column', alignItems: 'flex-start', gap: 2 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%' }}>
+                    <span className="field-key" style={{ fontWeight: 600 }}>{ct.name}</span>
+                    <span className="badge badge-blue" style={{ fontSize: 9 }}>{ct.role}</span>
+                  </div>
+                  {ct.phone && <div style={{ fontSize: 10, color: 'var(--text-faint)' }}>{ct.phone}</div>}
+                  {ct.organization && <div style={{ fontSize: 10, color: 'var(--text-faint)' }}>{ct.organization}</div>}
+                </div>
+              )}
+            />
+          </div>
+        </Section>
+      </div>
+
+      {/* Goals · Assessment & Plan */}
+      <div className="summary-cols">
+        <Section title="Patient Goals">
+          <div className="summary-fields">
+            {(p.goals ?? []).length === 0 && <div className="card-empty-sm">No data for this patient</div>}
+            {(p.goals ?? []).map((g, i) => (
+              <div key={i} className="risk-item" style={{ color: 'var(--navy-600)' }}>
+                <span style={{ color: 'var(--teal-500)' }}>→</span>
+                <span style={{ fontSize: 11 }}>{g}</span>
               </div>
-            </div>
-          )}
-        </div>
-      )}
+            ))}
+          </div>
+        </Section>
+
+        <Section title="Assessment & Plan">
+          {p.assessment_plan
+            ? <div style={{ padding: '10px 14px', fontSize: 12, color: 'var(--text-body)', lineHeight: 1.6 }}>{p.assessment_plan}</div>
+            : <div className="summary-fields"><div className="card-empty-sm">No data for this patient</div></div>}
+        </Section>
+      </div>
     </div>
   )
 }

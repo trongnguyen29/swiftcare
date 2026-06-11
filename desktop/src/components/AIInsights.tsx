@@ -265,21 +265,26 @@ const SEV_STYLE: Record<Severity, { bg: string; border: string; color: string; i
   good:     { bg: 'var(--ok-bg)',      border: 'var(--ok-bdr)',      color: 'var(--ok)',       icon: '✓' },
 }
 
-function InsightsTab({ patient: p }: Props) {
+/** Rule-based clinical findings, as a self-contained card (folded into Overview). */
+export function AIFindings({ patient: p }: Props) {
   const [expanded, setExpanded] = useState<number | null>(null)
   const findings = derive(p)
   const critical = findings.filter(f => f.severity === 'critical').length
   const warning  = findings.filter(f => f.severity === 'warning').length
 
   return (
-    <>
-      <div className="ai-tab-subheader">
-        <div style={{ display: 'flex', gap: 6 }}>
+    <div className="card ai-card">
+      <div className="card-header">
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span className="ai-tag">AI</span>
+          <span className="card-title">Clinical Insights</span>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           {critical > 0 && <span className="badge badge-danger">{critical} Critical</span>}
           {warning  > 0 && <span className="badge badge-warn">{warning} Warning{warning > 1 ? 's' : ''}</span>}
           {critical === 0 && warning === 0 && <span className="badge badge-ok">All Clear</span>}
+          <span style={{ fontSize: 10, color: 'var(--text-faint)' }}>{findings.length} finding{findings.length !== 1 ? 's' : ''}</span>
         </div>
-        <span style={{ fontSize: 10, color: 'var(--text-faint)' }}>{findings.length} finding{findings.length !== 1 ? 's' : ''}</span>
       </div>
 
       {findings.length === 0 && (
@@ -325,7 +330,7 @@ function InsightsTab({ patient: p }: Props) {
         AI Insights are generated from structured EHR data using evidence-based clinical thresholds.
         Always apply clinical judgment. Not a substitute for professional medical advice.
       </div>
-    </>
+    </div>
   )
 }
 
@@ -338,7 +343,8 @@ interface ChatMessage {
   content: string
 }
 
-function ChatTab({ patient: p }: Props) {
+/** Conversational AI over the full patient record — opened from the banner's Ask AI. */
+export function AIChat({ patient: p }: Props) {
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [input, setInput]       = useState('')
   const [loading, setLoading]   = useState(false)
@@ -460,45 +466,3 @@ function ChatTab({ patient: p }: Props) {
   )
 }
 
-/* ─────────────────────────────────────────
-   ROOT COMPONENT — tabbed container
-───────────────────────────────────────── */
-
-type Tab = 'insights' | 'chat'
-
-export default function AIInsights({ patient: p }: Props) {
-  const [tab, setTab] = useState<Tab>('insights')
-
-  const findings = derive(p)
-  const critical = findings.filter(f => f.severity === 'critical').length
-  const warning  = findings.filter(f => f.severity === 'warning').length
-
-  return (
-    <div className="card ai-card">
-      {/* Header */}
-      <div className="card-header ai-header">
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span className="ai-badge">AI</span>
-          <div className="ai-tab-pills">
-            <button
-              className={`ai-tab-pill ${tab === 'insights' ? 'ai-tab-pill--active' : ''}`}
-              onClick={() => setTab('insights')}
-            >
-              Clinical Insights
-              {critical > 0 && <span className="ai-tab-pill-dot ai-tab-pill-dot--danger">{critical}</span>}
-              {critical === 0 && warning > 0 && <span className="ai-tab-pill-dot ai-tab-pill-dot--warn">{warning}</span>}
-            </button>
-            <button
-              className={`ai-tab-pill ${tab === 'chat' ? 'ai-tab-pill--active' : ''}`}
-              onClick={() => setTab('chat')}
-            >
-              AI Chat
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {tab === 'insights' ? <InsightsTab patient={p} /> : <ChatTab patient={p} />}
-    </div>
-  )
-}

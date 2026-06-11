@@ -1,40 +1,11 @@
 import type { Patient } from '../lib/supabase'
+import { RANGES, NORMAL, vitalStatus, statusVar } from '../lib/clinicalRanges'
 
 interface Props { patient: Patient }
 
-/* ── Reference ranges ── */
-const RANGES: Record<string, { lo: number; hi: number; unit: string; label: string }> = {
-  systolic_bp:       { lo: 90,  hi: 180, unit: 'mmHg',  label: 'Systolic BP'    },
-  diastolic_bp:      { lo: 60,  hi: 120, unit: 'mmHg',  label: 'Diastolic BP'   },
-  heart_rate:        { lo: 40,  hi: 140, unit: 'bpm',   label: 'Heart Rate'     },
-  bmi:               { lo: 15,  hi: 45,  unit: '',      label: 'BMI'            },
-  total_cholesterol: { lo: 100, hi: 280, unit: 'mg/dL', label: 'Total Chol.'   },
-  ldl:               { lo: 50,  hi: 200, unit: 'mg/dL', label: 'LDL'           },
-  hdl:               { lo: 20,  hi: 100, unit: 'mg/dL', label: 'HDL'           },
-  triglycerides:     { lo: 50,  hi: 400, unit: 'mg/dL', label: 'Triglycerides' },
-  hba1c:             { lo: 4,   hi: 11,  unit: '%',     label: 'HbA1c'         },
-  glucose:           { lo: 60,  hi: 300, unit: 'mg/dL', label: 'Glucose'       },
-}
-
-/* Normal / target zones within the range */
-const NORMAL: Record<string, { lo: number; hi: number }> = {
-  systolic_bp:       { lo: 90,  hi: 130 },
-  diastolic_bp:      { lo: 60,  hi: 90  },
-  heart_rate:        { lo: 60,  hi: 100 },
-  bmi:               { lo: 18.5,hi: 25  },
-  total_cholesterol: { lo: 100, hi: 200 },
-  ldl:               { lo: 50,  hi: 130 },
-  hdl:               { lo: 40,  hi: 100 },
-  triglycerides:     { lo: 50,  hi: 150 },
-  hba1c:             { lo: 4,   hi: 5.7 },
-  glucose:           { lo: 70,  hi: 100 },
-}
-
+/* Resolve a status color for a value via the shared 3-tier engine. */
 function statusColor(key: string, val: number) {
-  const n = NORMAL[key]
-  if (!n) return 'var(--text-muted)'
-  if (val > n.hi || val < n.lo) return 'var(--danger)'
-  return 'var(--ok)'
+  return statusVar(vitalStatus(key, val))
 }
 
 /* Single horizontal gauge bar */
@@ -113,7 +84,7 @@ function MiniBarChart({ data, title }: { data: BarDatum[]; title: string }) {
 }
 
 /* Radial risk ring — pure SVG */
-function RiskRing({ score, label, color }: { score: number; label: string; color: string }) {
+export function RiskRing({ score, label, color }: { score: number; label: string; color: string }) {
   const r = 28, cx = 36, cy = 36
   const circ = 2 * Math.PI * r
   const dash = (score / 100) * circ
@@ -137,44 +108,56 @@ function RiskRing({ score, label, color }: { score: number; label: string; color
   )
 }
 
+/* ── Risk scoring (shared with Overview) ── */
+export function cvScore(p: Patient) {
+  let s = 0
+  if (p.systolic_bp != null && p.systolic_bp >= 140) s += 30
+  else if (p.systolic_bp != null && p.systolic_bp >= 130) s += 15
+  if (p.total_cholesterol != null && p.total_cholesterol >= 240) s += 25
+  else if (p.total_cholesterol != null && p.total_cholesterol >= 200) s += 12
+  if (p.ldl != null && p.ldl >= 160) s += 25
+  else if (p.ldl != null && p.ldl >= 130) s += 12
+  if (p.tobacco_status === 'former') s += 20
+  return Math.min(100, s)
+}
+export function metabolicScore(p: Patient) {
+  let s = 0
+  if (p.hba1c != null && p.hba1c >= 6.5) s += 35
+  else if (p.hba1c != null && p.hba1c >= 5.7) s += 18
+  if (p.glucose != null && p.glucose >= 126) s += 30
+  else if (p.glucose != null && p.glucose >= 100) s += 15
+  if (p.bmi != null && p.bmi >= 30) s += 25
+  else if (p.bmi != null && p.bmi >= 25) s += 12
+  if (p.triglycerides != null && p.triglycerides >= 200) s += 10
+  return Math.min(100, s)
+}
+export function overallScore(p: Patient) {
+  return Math.round((cvScore(p) + metabolicScore(p)) / 2)
+}
+export function ringColor(s: number) {
+  if (s >= 60) return 'var(--danger)'
+  if (s >= 30) return 'var(--warn)'
+  return 'var(--ok)'
+}
+
+/** The three-ring risk row (without card chrome) — reused by Overview and Chart. */
+export function RiskRings({ patient: p }: Props) {
+  const cv = cvScore(p), meta = metabolicScore(p), ov = overallScore(p)
+  return (
+    <>
+      <RiskRing score={ov}   label="Overall"     color={ringColor(ov)}   />
+      <div className="risk-ring-divider" />
+      <RiskRing score={cv}   label="Cardiovasc." color={ringColor(cv)}   />
+      <div className="risk-ring-divider" />
+      <RiskRing score={meta} label="Metabolic"   color={ringColor(meta)} />
+    </>
+  )
+}
+
+const VITAL_GAUGES = ['systolic_bp', 'diastolic_bp', 'heart_rate', 'bmi'] as const
+const LAB_GAUGES   = ['hba1c', 'glucose', 'total_cholesterol', 'ldl', 'hdl', 'triglycerides'] as const
+
 export default function PatientCharts({ patient: p }: Props) {
-  /* Compute a simple 0-100 risk score per category */
-  function cvScore() {
-    let s = 0
-    if (p.systolic_bp != null && p.systolic_bp >= 140) s += 30
-    else if (p.systolic_bp != null && p.systolic_bp >= 130) s += 15
-    if (p.total_cholesterol != null && p.total_cholesterol >= 240) s += 25
-    else if (p.total_cholesterol != null && p.total_cholesterol >= 200) s += 12
-    if (p.ldl != null && p.ldl >= 160) s += 25
-    else if (p.ldl != null && p.ldl >= 130) s += 12
-    if (p.tobacco_status === 'former') s += 20
-    return Math.min(100, s)
-  }
-  function metabolicScore() {
-    let s = 0
-    if (p.hba1c != null && p.hba1c >= 6.5) s += 35
-    else if (p.hba1c != null && p.hba1c >= 5.7) s += 18
-    if (p.glucose != null && p.glucose >= 126) s += 30
-    else if (p.glucose != null && p.glucose >= 100) s += 15
-    if (p.bmi != null && p.bmi >= 30) s += 25
-    else if (p.bmi != null && p.bmi >= 25) s += 12
-    if (p.triglycerides != null && p.triglycerides >= 200) s += 10
-    return Math.min(100, s)
-  }
-  function overallScore() {
-    return Math.round((cvScore() + metabolicScore()) / 2)
-  }
-
-  const cv   = cvScore()
-  const meta = metabolicScore()
-  const ov   = overallScore()
-
-  function ringColor(s: number) {
-    if (s >= 60) return 'var(--danger)'
-    if (s >= 30) return 'var(--warn)'
-    return 'var(--ok)'
-  }
-
   const lipidData: BarDatum[] = [
     { label: 'T.Chol', value: p.total_cholesterol, unit: 'mg/dL', normalHi: 200, key: 'total_cholesterol' },
     { label: 'LDL',    value: p.ldl,               unit: 'mg/dL', normalHi: 130, key: 'ldl'               },
@@ -182,28 +165,12 @@ export default function PatientCharts({ patient: p }: Props) {
     { label: 'Trig.',  value: p.triglycerides,      unit: 'mg/dL', normalHi: 150, key: 'triglycerides'     },
   ]
 
+  const hasVitals = VITAL_GAUGES.some(f => p[f] != null)
+  const hasLabs   = LAB_GAUGES.some(f => p[f] != null)
+  const hasLipids = lipidData.some(d => d.value != null)
+
   return (
     <div className="charts-wrap">
-
-      {/* Risk Rings Row */}
-      <div className="card risk-rings-card">
-        <div className="card-header"><span className="card-title">Risk Overview</span></div>
-        <div className="risk-rings-row">
-          <RiskRing score={ov}   label="Overall"    color={ringColor(ov)}   />
-          <div className="risk-ring-divider" />
-          <RiskRing score={cv}   label="Cardiovasc." color={ringColor(cv)}   />
-          <div className="risk-ring-divider" />
-          <RiskRing score={meta} label="Metabolic"  color={ringColor(meta)} />
-          <div className="risk-rings-legend">
-            <div className="rings-legend-item"><span style={{ color: 'var(--ok)' }}>●</span> Low (0–29)</div>
-            <div className="rings-legend-item"><span style={{ color: 'var(--warn)' }}>●</span> Moderate (30–59)</div>
-            <div className="rings-legend-item"><span style={{ color: 'var(--danger)' }}>●</span> High (60+)</div>
-            <div style={{ marginTop: 6, fontSize: 10, color: 'var(--text-faint)' }}>
-              Scores derived from current vitals &amp; labs
-            </div>
-          </div>
-        </div>
-      </div>
 
       {/* Two column: gauges + bar chart */}
       <div className="charts-two-col">
@@ -212,33 +179,34 @@ export default function PatientCharts({ patient: p }: Props) {
         <div className="card chart-card">
           <div className="card-header">
             <span className="card-title">Vitals vs. Reference</span>
-            <span className="gauge-legend">
-              <span className="gauge-legend-normal" /> Normal range
-            </span>
+            {hasVitals && <span className="gauge-legend"><span className="gauge-legend-normal" /> Normal range</span>}
           </div>
           <div className="gauges-body">
-            {(['systolic_bp','diastolic_bp','heart_rate','bmi'] as const).map(f =>
-              <GaugeBar key={f} field={f} value={p[f]} />
-            )}
+            {hasVitals
+              ? VITAL_GAUGES.map(f => <GaugeBar key={f} field={f} value={p[f]} />)
+              : <div className="card-empty-sm">No data for this patient</div>}
           </div>
         </div>
 
         {/* Lipid Panel Bar Chart */}
-        <MiniBarChart data={lipidData} title="Lipid Panel" />
+        {hasLipids ? <MiniBarChart data={lipidData} title="Lipid Panel" /> : (
+          <div className="card chart-card">
+            <div className="card-header"><span className="card-title">Lipid Panel</span></div>
+            <div className="card-empty-sm">No data for this patient</div>
+          </div>
+        )}
       </div>
 
       {/* Labs gauges */}
       <div className="card chart-card">
         <div className="card-header">
           <span className="card-title">Metabolic Labs vs. Reference</span>
-          <span className="gauge-legend">
-            <span className="gauge-legend-normal" /> Normal range
-          </span>
+          {hasLabs && <span className="gauge-legend"><span className="gauge-legend-normal" /> Normal range</span>}
         </div>
-        <div className="gauges-body gauges-body--grid">
-          {(['hba1c','glucose','total_cholesterol','ldl','hdl','triglycerides'] as const).map(f =>
-            <GaugeBar key={f} field={f} value={p[f]} />
-          )}
+        <div className={hasLabs ? 'gauges-body gauges-body--grid' : 'gauges-body'}>
+          {hasLabs
+            ? LAB_GAUGES.map(f => <GaugeBar key={f} field={f} value={p[f]} />)
+            : <div className="card-empty-sm">No data for this patient</div>}
         </div>
       </div>
 
