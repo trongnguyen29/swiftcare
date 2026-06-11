@@ -35,7 +35,11 @@ export default function PatientSearch({ selected, onSelect }: Props) {
     setPatients(MOCK_PATIENTS.filter(p => {
       if (f === 'positive' && p.label !== 1) return false
       if (f === 'control'  && p.label !== 0) return false
-      if (q.trim() && !p.ptnum.toLowerCase().includes(q.trim().toLowerCase())) return false
+      if (q.trim()) {
+        const needle = q.trim().toLowerCase()
+        const fullName = [p.first_name, p.last_name].filter(Boolean).join(' ').toLowerCase()
+        if (!p.ptnum.toLowerCase().includes(needle) && !fullName.includes(needle)) return false
+      }
       return true
     }))
   }, [])
@@ -95,13 +99,15 @@ export default function PatientSearch({ selected, onSelect }: Props) {
             onClick={() => onSelect(p)}
           >
             <div className="patient-row-top">
-              <span className="patient-id">{p.ptnum}</span>
+              <span className="patient-id">
+                {[p.first_name, p.last_name].filter(Boolean).join(' ') || p.ptnum}
+              </span>
               <span className={`badge ${p.label === 1 ? 'badge-danger' : 'badge-ok'}`}>
                 {p.label === 1 ? 'LC+' : 'Control'}
               </span>
             </div>
             <div className="patient-row-sub">
-              {p.age ? `${p.age}y` : '—'} · {p.gender === 'm' ? 'Male' : p.gender === 'f' ? 'Female' : '—'}
+              {p.age ? `${p.age}y` : '—'} · {p.administrative_sex ?? '—'}
               {p.scc != null ? ` · SCC ${p.scc}` : ''}
             </div>
           </button>
