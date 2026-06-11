@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { chatWithPatientContext } from '../lib/api'
 import { buildPatientContext } from '../lib/patientContext'
 import type { Patient } from '../lib/supabase'
@@ -38,6 +38,16 @@ export default function PatientSummary({ patient: p, section, cachedOverview, on
   const [aiError,    setAiError]      = useState<string | null>(null)
   const [generated,  setGenerated]    = useState(!!cachedOverview)
 
+  const showOverview = !section || section === 'overview'
+
+  useEffect(() => {
+    if (!cachedOverview && showOverview) {
+      generateOverview()
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+
   async function generateOverview() {
     setAiLoading(true); setAiError(null)
     try {
@@ -61,13 +71,12 @@ STRICT RULES:
       setGenerated(true)
       onOverviewGenerated?.(reply)
     } catch (e: unknown) {
-      setAiError(e instanceof Error ? e.message : 'Failed to generate overview')
+      setAiError(e instanceof Error ? e.message : String(e))
     } finally {
       setAiLoading(false)
     }
   }
 
-  const showOverview = !section || section === 'overview'
   const showHistory  = !section || section === 'history'
   const sccPct = p.scc ? Math.min(100, Math.round((p.scc / 172) * 100)) : 0
   const isLC   = p.label === 1
@@ -83,7 +92,7 @@ STRICT RULES:
     p.sdoh_veteran_status                                     && 'Veteran',
   ].filter(Boolean) as string[]
 
-  const displayName = [p.first_name, p.middle_name, p.last_name].filter(Boolean).join(' ') || p.ptnum
+  const displayName = [p.first_name, p.middle_name, p.last_name].filter(Boolean).join(' ').replace(/\d+/g, '').trim() || p.ptnum
 
   return (
     <div className="summary-wrap">
