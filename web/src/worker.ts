@@ -17,36 +17,6 @@ interface StatsPayload {
 
 const MODEL = 'gpt-4o-mini' // swap to hospital endpoint/model here
 
-function buildInsightPrompt(s: StatsPayload): string {
-  const prevalence = ((s.pos / s.total) * 100).toFixed(1)
-  const former = s.tobaccoCancer.find(t => t.status === 'Former Smoker')
-  const never  = s.tobaccoCancer.find(t => t.status === 'Never Smoked')
-  const formerRate = former
-    ? ((former.positive / (former.positive + former.negative)) * 100).toFixed(1)
-    : '—'
-  const neverRate = never
-    ? ((never.positive / (never.positive + never.negative)) * 100).toFixed(1)
-    : '—'
-  const peakAge = s.ageDist.reduce(
-    (best, b) => (b.positive > best.positive ? b : best),
-    s.ageDist[0],
-  )
-
-  return `Analyze this synthetic lung cancer research cohort and provide exactly 5 clinical insights numbered 1–5. Each insight should be 1–3 sentences, evidence-based, and cite specific numbers where relevant.
-
-COHORT DATA:
-- Patients: ${s.total.toLocaleString()} total | ${s.pos.toLocaleString()} LC Positive (${prevalence}%) | ${s.neg.toLocaleString()} Control
-- Avg age ${s.avgAge}y | Avg BMI ${s.avgBmi} | Avg SCC score ${s.avgScc} (range 9–172)
-- Tobacco: Former smoker LC rate ${formerRate}% vs never-smoker rate ${neverRate}%
-- Peak LC cases in age group: ${peakAge?.age ?? '60–70'} (${peakAge?.positive?.toLocaleString()} positive)
-
-AVERAGE VITALS:
-- Systolic BP ${s.vitals.avg_systolic} mmHg | Diastolic ${s.vitals.avg_diastolic} mmHg | HR ${s.vitals.avg_hr} bpm
-- Total Cholesterol ${s.vitals.avg_chol} mg/dL | LDL ${s.vitals.avg_ldl} mg/dL | HbA1c ${s.vitals.avg_hba1c}%
-
-Focus on: disease burden, tobacco risk stratification, cardiovascular profile, metabolic health, and one actionable population health recommendation.`
-}
-
 const CORS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
