@@ -2,8 +2,11 @@ import type { Patient } from '../lib/supabase'
 
 interface Props { patient: Patient; onAskAI?: () => void; onStartRecording?: () => void }
 
-function sexGlyph(sex: string | null): string {
-  return sex === 'Male' ? '♂' : sex === 'Female' ? '♀' : '⊕'
+/** Initials from the patient's name, e.g. "Abdul Beatty" → "AB". */
+function initials(p: Patient): string {
+  const clean = (s: string | null) => (s ?? '').replace(/\d+/g, '').trim()
+  const init = (clean(p.first_name).charAt(0) + clean(p.last_name).charAt(0)).toUpperCase()
+  return init || clean(p.ptnum).charAt(0).toUpperCase() || '?'
 }
 
 function maritalLabel(m: string | null): string | null {
@@ -33,7 +36,7 @@ export default function PatientBanner({ patient: p, onAskAI, onStartRecording }:
 
   return (
     <div className="pt-banner">
-      <div className="pb-avatar">{sexGlyph(p.administrative_sex)}</div>
+      <div className="pb-avatar">{initials(p)}</div>
 
       <div className="pb-info">
         <div className="pb-name-row">
