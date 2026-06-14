@@ -63,26 +63,25 @@ struct PatientOverviewView: View {
     ]
     
     var body: some View {
-        ScrollView {
-            VStack(spacing: 16) {
-                // Attention Bar
-                attentionBar
-                
-                // AI Brief
-                aiBriefCard
-                
-                // Grid of cards
-                LazyVGrid(columns: columns, spacing: 16) {
-                    riskCard
-                    activeProblemsCard
-                    vitalsCard
-                    labsCard
-                    allergiesCard
-                }
+        VStack(spacing: 16) {
+            // Attention Bar
+            attentionBar
+            
+            // AI Brief
+            aiBriefCard
+            
+            // Grid of cards
+            LazyVGrid(columns: columns, spacing: 16) {
+                riskCard
+                AIFindingsView(patient: patient)
+                activeProblemsCard
+                vitalsCard
+                labsCard
+                allergiesCard
             }
         }
         .task(id: patient.id) {
-            await loadAIOldOverview()
+            await loadOrGenerateOverview()
         }
     }
     
@@ -264,8 +263,7 @@ struct PatientOverviewView: View {
         }
     }
     
-    // MARK: - AI Loading
-    func loadAIOldOverview() async {
+    func loadOrGenerateOverview() async {
         let fp = PatientContext.fingerprint(for: PatientContext.build(for: patient))
         aiLoading = true
         aiError = nil

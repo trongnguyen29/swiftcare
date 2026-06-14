@@ -65,21 +65,30 @@ struct PatientDetailView: View {
             
             Divider()
             
-            // Content
-            ScrollView {
-                VStack {
-                    switch activeTab {
-                    case .overview:
+            // Content — each tab owns its own scroll
+            Group {
+                switch activeTab {
+                case .overview:
+                    ScrollView {
                         PatientOverviewView(patient: patient)
-                    case .chart:
-                        Text("Chart coming soon") // PatientChartView(patient: patient)
-                    case .visit:
-                        VisitView(patient: patient)
+                            .padding()
                     }
+                    .background(Color(UIColor.systemGroupedBackground))
+
+                case .chart:
+                    ScrollView {
+                        VStack(spacing: 16) {
+                            PatientChartView(patient: patient)
+                            PatientChartDetailView(patient: patient)
+                        }
+                        .padding()
+                    }
+                    .background(Color(UIColor.systemGroupedBackground))
+
+                case .visit:
+                    VisitView(patient: patient)
                 }
-                .padding()
             }
-            .background(Color(UIColor.systemGroupedBackground))
         }
         .navigationTitle(patient.displayName)
         .navigationBarTitleDisplayMode(.inline)

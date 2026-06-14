@@ -5,12 +5,27 @@ enum SortKey {
     case risk
 }
 
+enum PatientFilter: String, CaseIterable {
+    case all      = "all"
+    case positive = "positive"
+    case control  = "control"
+
+    var label: String {
+        switch self {
+        case .all:      return "All"
+        case .positive: return "LC+"
+        case .control:  return "Control"
+        }
+    }
+}
+
 struct PatientListView: View {
     @Binding var selectedPatient: Patient?
     
     @State private var patients: [Patient] = []
     @State private var query: String = ""
     @State private var sort: SortKey = .name
+    @State private var filter: PatientFilter = .all
     @State private var isLoading: Bool = false
     @State private var errorMessage: String? = nil
     
@@ -43,11 +58,24 @@ struct PatientListView: View {
                     .textFieldStyle(RoundedBorderTextFieldStyle())
                     .padding(.horizontal)
                 
+                // Filter (All / LC+ / Control)
+                HStack {
+                    Text("Filter")
+                        .font(.caption).foregroundColor(.secondary)
+                    Picker("Filter", selection: $filter) {
+                        ForEach(PatientFilter.allCases, id: \.self) { f in
+                            Text(f.label).tag(f)
+                        }
+                    }
+                    .pickerStyle(SegmentedPickerStyle())
+                }
+                .padding(.horizontal)
+                .onChange(of: filter) { _ in Task { await loadPatients() } }
+
+                // Sort (Name / Risk)
                 HStack {
                     Text("Sort")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                    
+                        .font(.caption).foregroundColor(.secondary)
                     Picker("Sort", selection: $sort) {
                         Text("Name").tag(SortKey.name)
                         Text("Risk").tag(SortKey.risk)
@@ -95,7 +123,7 @@ struct PatientListView: View {
         isLoading = true
         errorMessage = nil
         do {
-            patients = try await APIService.shared.queryPatients()
+            patients = try await APIService.shared.queryPatients(filter: filter.rawValue)
         } catch {
             errorMessage = error.localizedDescription
         }
