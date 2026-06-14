@@ -319,7 +319,7 @@ struct VisitView: View {
 
         Task {
             do {
-                let text = try await APIService.shared.transcribeAudio(audioB64: audioB64, mimeType: "audio/m4a", patientId: patient.ptnum)
+                let text = try await APIService.shared.transcribeAudio(audioB64: audioB64, mimeType: "audio/wav", patientId: patient.ptnum)
                 transcript = text
                 recorderState = .done
             } catch {

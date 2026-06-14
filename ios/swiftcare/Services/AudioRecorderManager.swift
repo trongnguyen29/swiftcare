@@ -24,13 +24,15 @@ class AudioRecorderManager: NSObject, ObservableObject, AVAudioRecorderDelegate 
             try audioSession.setCategory(.playAndRecord, mode: .default)
             try audioSession.setActive(true)
 
-            let url = getDocumentsDirectory().appendingPathComponent("recording.m4a")
+            let url = getDocumentsDirectory().appendingPathComponent("recording.wav")
 
             let settings: [String: Any] = [
-                AVFormatIDKey: Int(kAudioFormatMPEG4AAC),
+                AVFormatIDKey: Int(kAudioFormatLinearPCM),
                 AVSampleRateKey: 16000,
                 AVNumberOfChannelsKey: 1,
-                AVEncoderAudioQualityKey: AVAudioQuality.medium.rawValue
+                AVLinearPCMBitDepthKey: 16,
+                AVLinearPCMIsFloatKey: false,
+                AVLinearPCMIsBigEndianKey: false
             ]
 
             audioRecorder = try AVAudioRecorder(url: url, settings: settings)
@@ -56,7 +58,7 @@ class AudioRecorderManager: NSObject, ObservableObject, AVAudioRecorderDelegate 
         timer?.invalidate()
         timer = nil
 
-        let url = getDocumentsDirectory().appendingPathComponent("recording.m4a")
+        let url = getDocumentsDirectory().appendingPathComponent("recording.wav")
         do {
             let data = try Data(contentsOf: url)
             return data.base64EncodedString()
