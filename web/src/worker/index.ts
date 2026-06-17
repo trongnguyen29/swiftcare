@@ -138,14 +138,27 @@ RULES: Decision-support only. Cite patient-specific values. Use hedged language 
 // Desktop — SOAP note from transcript
 app.post("/api/soap-note", async (c) => {
   try {
-    const body = await c.req.json<{ transcript: string; patientContext: string }>();
-    const system = `You are a clinical documentation specialist generating SOAP notes from visit transcripts. Document ONLY what is stated in the transcript. Never fabricate findings. Use hedged diagnostic language.
+    const body = await c.req.json<{
+      transcript: string;
+      patientContext: string;
+      templatePrompt?: string;
+    }>();
 
-FORMAT:
+    // If the client supplies custom template instructions, use them.
+    // Otherwise fall back to the default SOAP format.
+    const defaultFormat = `FORMAT:
 **SUBJECTIVE** — chief complaint and HPI in patient's words
 **OBJECTIVE** — vitals/exam findings mentioned in the visit only
 **ASSESSMENT** — clinical impression with hedged language
-**PLAN** — numbered treatments, referrals, follow-up discussed
+**PLAN** — numbered treatments, referrals, follow-up discussed`;
+
+    const formatInstructions = body.templatePrompt?.trim()
+      ? body.templatePrompt.trim()
+      : defaultFormat;
+
+    const system = `You are a clinical documentation specialist generating clinical notes from visit transcripts. Document ONLY what is stated in the transcript. Never fabricate findings. Use hedged diagnostic language.
+
+${formatInstructions}
 
 ---
 ⚠ AI-GENERATED DRAFT — Requires physician review before filing.`;
@@ -153,7 +166,7 @@ FORMAT:
     const text = await callOpenAI(getKey(c), [
       { role: "system", content: system },
       { role: "user", content: `PATIENT RECORD:\n${body.patientContext}\n\nTRANSCRIPT:\n${body.transcript}` },
-    ], 1000);
+    ], 1200);
     return c.json({ note: text });
   } catch (e: unknown) {
     return c.json({ error: (e as Error).message }, 500);

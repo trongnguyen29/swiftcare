@@ -161,13 +161,16 @@ class APIService {
         return ""
     }
     
-    func summarizeTranscript(transcript: String, patientContext: String) async throws -> String {
+    func summarizeTranscript(transcript: String, patientContext: String, templatePrompt: String? = nil) async throws -> String {
         let url = URL(string: "\(workerUrl)/api/soap-note")!
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         
-        let body = ["transcript": transcript, "patientContext": patientContext]
+        var body: [String: Any] = ["transcript": transcript, "patientContext": patientContext]
+        if let tp = templatePrompt, !tp.isEmpty {
+            body["templatePrompt"] = tp
+        }
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
         
         let (data, response) = try await URLSession.shared.data(for: request)

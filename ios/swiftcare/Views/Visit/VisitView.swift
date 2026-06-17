@@ -36,6 +36,11 @@ struct VisitView: View {
     @State private var copiedTranscript = false
     @State private var copiedNote = false
 
+    // Template
+    @State private var selectedTemplate: TranscriptionTemplate = TemplateStore.shared.selectedTemplate
+    @State private var customPrompt: String = TemplateStore.shared.customPrompt
+    @State private var showTemplatePicker = false
+
     var body: some View {
         ScrollView {
             VStack(spacing: 16) {
@@ -47,6 +52,17 @@ struct VisitView: View {
         }
         .background(Color(UIColor.systemGroupedBackground))
         .onAppear { loadHistory() }
+        .sheet(isPresented: $showTemplatePicker) {
+            TemplatePickerView(
+                selectedTemplate: $selectedTemplate,
+                customPrompt: $customPrompt
+            ) {
+                // Persist to shared store
+                TemplateStore.shared.selectedTemplate = selectedTemplate
+                TemplateStore.shared.customPrompt = customPrompt
+            }
+            .presentationDetents([.large])
+        }
     }
 
     // MARK: - Recorder Card
@@ -169,8 +185,18 @@ struct VisitView: View {
                         VStack(spacing: 12) {
                             ForEach(history) { note in
                                 VStack(alignment: .leading, spacing: 4) {
-                                    Text(ISO8601DateFormatter().date(from: note.createdAt).map { $0.formatted(.dateTime) } ?? note.createdAt)
-                                        .font(.caption.bold()).foregroundColor(.secondary)
+                                    HStack(spacing: 6) {
+                                        Text(ISO8601DateFormatter().date(from: note.createdAt).map { $0.formatted(.dateTime) } ?? note.createdAt)
+                                            .font(.caption.bold()).foregroundColor(.secondary)
+                                        if let tName = note.templateName {
+                                            Text(tName)
+                                                .font(.system(size: 9, weight: .semibold))
+                                                .padding(.horizontal, 5).padding(.vertical, 2)
+                                                .background(Color.teal.opacity(0.12))
+                                                .foregroundColor(.teal)
+                                                .clipShape(Capsule())
+                                        }
+                                    }
                                     Text(note.transcript).font(.caption).foregroundColor(.secondary).lineLimit(3)
                                     if !note.notes.isEmpty {
                                         Text(note.notes).font(.caption).foregroundColor(.primary).lineLimit(4)
@@ -203,7 +229,34 @@ struct VisitView: View {
     var noteCard: some View {
         CardView(title: "Clinical Note") {
             VStack(alignment: .leading, spacing: 12) {
-                // Actions
+
+                // ── Template chip ──────────────────────────────────────────
+                Button {
+                    showTemplatePicker = true
+                } label: {
+                    HStack(spacing: 5) {
+                        Image(systemName: selectedTemplate.icon)
+                            .font(.system(size: 10, weight: .semibold))
+                        Text(selectedTemplate.name)
+                            .font(.system(size: 12, weight: .semibold))
+                        Image(systemName: "chevron.down")
+                            .font(.system(size: 9, weight: .semibold))
+                    }
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 6)
+                    .background(
+                        Capsule()
+                            .fill(Color.teal.opacity(0.12))
+                    )
+                    .overlay(
+                        Capsule()
+                            .stroke(Color.teal.opacity(0.3), lineWidth: 1)
+                    )
+                    .foregroundColor(.teal)
+                }
+                .buttonStyle(.plain)
+
+                // ── Actions ────────────────────────────────────────────────
                 HStack(spacing: 10) {
                     Button {
                         Task { await generateNote() }
@@ -269,7 +322,8 @@ struct VisitView: View {
                     .overlay(
                         Group {
                             if clinicalNote.isEmpty && !noteGenerating {
-                                Text("Tap ✦ Generate Note for an AI-drafted SOAP note, or type manually…")
+
+                                Text("Tap ✦ Generate Note for an AI-drafted \(selectedTemplate.name), or type manually…")
                                     .font(.body).foregroundColor(.secondary).padding(12)
                                     .allowsHitTesting(false)
                             }
@@ -334,7 +388,12 @@ struct VisitView: View {
         noteError = nil
         do {
             let context = PatientContext.build(for: patient)
-            clinicalNote = try await APIService.shared.summarizeTranscript(transcript: transcript, patientContext: context)
+            let effectivePrompt = selectedTemplate.id == "custom" ? customPrompt : selectedTemplate.promptInstructions
+            clinicalNote = try await APIService.shared.summarizeTranscript(
+                transcript: transcript,
+                patientContext: context,
+                templatePrompt: effectivePrompt.isEmpty ? nil : effectivePrompt
+            )
             saved = false
         } catch {
             noteError = error.localizedDescription
@@ -343,7 +402,7 @@ struct VisitView: View {
     }
 
     func saveNote() {
-        NotesService.shared.saveNote(patientId: patient.ptnum, transcript: transcript, notes: clinicalNote)
+        NotesService.shared.saveNote(patientId: patient.ptnum, transcript: transcript, notes: clinicalNote, templateName: selectedTemplate.name)
         saved = true
         loadHistory()
     }
