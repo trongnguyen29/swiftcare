@@ -4,12 +4,14 @@ enum PatientTab: String, CaseIterable {
     case overview = "Overview"
     case chart = "Chart"
     case visit = "Visit"
+    case appointments = "Appointments"
     
     var icon: String {
         switch self {
         case .overview: return "square.grid.2x2"
         case .chart: return "chart.bar.doc.horizontal"
         case .visit: return "waveform.circle"
+        case .appointments: return "calendar"
         }
     }
 }
@@ -87,6 +89,9 @@ struct PatientDetailView: View {
 
                 case .visit:
                     VisitView(patient: patient)
+                
+                case .appointments:
+                    PatientAppointmentsView(patient: patient)
                 }
             }
         }
