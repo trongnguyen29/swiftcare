@@ -2,7 +2,8 @@ import SwiftUI
 
 struct PatientAppointmentsView: View {
     let patient: Patient
-    @State private var selectedDate: Date = Calendar.current.date(from: DateComponents(year: 2026, month: 6, day: 18)) ?? Date()
+    @State private var selectedDate: Date = Calendar.current.date(from: DateComponents(year: 2026, month: 6, 18)) ?? Date()
+    @State private var showingScheduleSheet = false
     
     // Using mock data for demonstration
     var appointments: [Appointment] {
@@ -93,7 +94,7 @@ struct PatientAppointmentsView: View {
                             }
                             .buttonStyle(PlainButtonStyle())
                             
-                            Button(action: {}) {
+                            Button(action: { showingScheduleSheet = true }) {
                                 HStack {
                                     Image(systemName: "plus")
                                     Text("Schedule Appointment")
@@ -127,6 +128,9 @@ struct PatientAppointmentsView: View {
             .padding()
         }
         .background(Color(UIColor.systemGroupedBackground))
+        .sheet(isPresented: $showingScheduleSheet) {
+            ScheduleAppointmentView(patient: patient)
+        }
     }
     
     private func dateString(from date: Date) -> String {
