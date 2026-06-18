@@ -264,34 +264,59 @@ struct TranscriptionTemplate: Identifiable, Codable, Equatable {
 
 // MARK: - Template Store
 
-/// Manages the selected template and any custom prompt the user has written.
-/// Persists selections via UserDefaults.
+/// Manages note-format and disease-focus selections independently.
+/// Persists both selections via UserDefaults.
 class TemplateStore: ObservableObject {
     static let shared = TemplateStore()
 
-    private let selectedIdKey    = "swiftcare.selectedTemplateId"
-    private let customPromptKey  = "swiftcare.customTemplatePrompt"
+    private let noteFormatIdKey = "swiftcare.selectedNoteFormatId"
+    private let diseaseIdKey    = "swiftcare.selectedDiseaseId"   // "" = none
+    private let customPromptKey = "swiftcare.customTemplatePrompt"
 
     // @Published + didSet cannot be combined in Swift; use manual objectWillChange instead.
-    var selectedTemplate: TranscriptionTemplate {
+
+    /// The active note-format template (SOAP, H&P, Progress, etc.)
+    var selectedNoteFormat: TranscriptionTemplate {
         willSet { objectWillChange.send() }
-        didSet  { UserDefaults.standard.set(selectedTemplate.id, forKey: selectedIdKey) }
+        didSet  { UserDefaults.standard.set(selectedNoteFormat.id, forKey: noteFormatIdKey) }
     }
 
-    /// The user-written prompt when "Custom" is selected
+    /// Optional disease-focus overlay; nil = no disease focus
+    var selectedDiseaseTemplate: TranscriptionTemplate? {
+        willSet { objectWillChange.send() }
+        didSet  { UserDefaults.standard.set(selectedDiseaseTemplate?.id ?? "", forKey: diseaseIdKey) }
+    }
+
+    /// The user-written prompt when "Custom" note format is selected
     var customPrompt: String {
         willSet { objectWillChange.send() }
         didSet  { UserDefaults.standard.set(customPrompt, forKey: customPromptKey) }
     }
 
     private init() {
-        let savedId = UserDefaults.standard.string(forKey: selectedIdKey) ?? "soap"
-        self.selectedTemplate = TranscriptionTemplate.builtIns.first { $0.id == savedId } ?? .soap
+        let savedFormatId = UserDefaults.standard.string(forKey: noteFormatIdKey) ?? "soap"
+        self.selectedNoteFormat = TranscriptionTemplate.noteFormatTemplates
+            .first { $0.id == savedFormatId } ?? .soap
+
+        let savedDiseaseId = UserDefaults.standard.string(forKey: diseaseIdKey) ?? ""
+        self.selectedDiseaseTemplate = savedDiseaseId.isEmpty ? nil :
+            TranscriptionTemplate.diseaseTemplates.first { $0.id == savedDiseaseId }
+
         self.customPrompt = UserDefaults.standard.string(forKey: customPromptKey) ?? ""
     }
 
-    /// Returns the effective prompt instructions for the current selection
+    /// Combined prompt: note-format instructions + optional disease-focus overlay.
     var effectivePromptInstructions: String {
-        selectedTemplate.id == "custom" ? customPrompt : selectedTemplate.promptInstructions
+        let notePrompt = selectedNoteFormat.id == "custom"
+            ? customPrompt
+            : selectedNoteFormat.promptInstructions
+        guard let disease = selectedDiseaseTemplate else { return notePrompt }
+        return """
+        \(notePrompt)
+
+        Additionally, apply the following disease-specific clinical focus:
+
+        \(disease.promptInstructions)
+        """
     }
 }

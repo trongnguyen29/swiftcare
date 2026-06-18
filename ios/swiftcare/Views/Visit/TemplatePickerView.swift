@@ -1,30 +1,41 @@
 import SwiftUI
 
 // MARK: - TemplatePickerView
+//
+// Full-screen picker opened from the [More ›] buttons on each inline selector row.
+// Pass `initialCategory` to open directly on the right tab.
+// "Use Format" / "Apply Focus" writes back only the active category's selection.
 
 struct TemplatePickerView: View {
-    @Binding var selectedTemplate: TranscriptionTemplate
+    @Binding var selectedNoteFormat: TranscriptionTemplate
+    @Binding var selectedDiseaseTemplate: TranscriptionTemplate?
     @Binding var customPrompt: String
+    let initialCategory: TemplateCategory
     let onConfirm: () -> Void
 
     @Environment(\.dismiss) private var dismiss
-    @State private var draft: TranscriptionTemplate
+    @State private var activeCategory: TemplateCategory
+    @State private var draftNoteFormat: TranscriptionTemplate
+    @State private var draftDiseaseTemplate: TranscriptionTemplate?
     @State private var draftCustomPrompt: String
-    @State private var activeCategory: TemplateCategory = .noteFormat
     @FocusState private var customEditorFocused: Bool
 
     init(
-        selectedTemplate: Binding<TranscriptionTemplate>,
+        selectedNoteFormat: Binding<TranscriptionTemplate>,
+        selectedDiseaseTemplate: Binding<TranscriptionTemplate?>,
         customPrompt: Binding<String>,
+        initialCategory: TemplateCategory = .noteFormat,
         onConfirm: @escaping () -> Void
     ) {
-        self._selectedTemplate = selectedTemplate
+        self._selectedNoteFormat = selectedNoteFormat
+        self._selectedDiseaseTemplate = selectedDiseaseTemplate
         self._customPrompt = customPrompt
+        self.initialCategory = initialCategory
         self.onConfirm = onConfirm
-        self._draft = State(initialValue: selectedTemplate.wrappedValue)
+        self._activeCategory = State(initialValue: initialCategory)
+        self._draftNoteFormat = State(initialValue: selectedNoteFormat.wrappedValue)
+        self._draftDiseaseTemplate = State(initialValue: selectedDiseaseTemplate.wrappedValue)
         self._draftCustomPrompt = State(initialValue: customPrompt.wrappedValue)
-        // Open on the category of the current selection
-        self._activeCategory = State(initialValue: selectedTemplate.wrappedValue.category)
     }
 
     let columns = [GridItem(.flexible()), GridItem(.flexible())]
@@ -50,10 +61,10 @@ struct TemplatePickerView: View {
                 .padding(.top, 12)
                 .padding(.bottom, 8)
 
-                // ── Category description blurb ─────────────────────────────
+                // ── Category description ───────────────────────────────────
                 Text(activeCategory == .noteFormat
                      ? "Choose a documentation format for the AI note."
-                     : "Focus the AI note on a specific condition's key clinical elements.")
+                     : "Optionally focus the AI note on a specific condition.")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
@@ -66,28 +77,89 @@ struct TemplatePickerView: View {
                 // ── Template grid ──────────────────────────────────────────
                 ScrollView {
                     VStack(alignment: .leading, spacing: 20) {
+
+                        // "No Disease Focus" option at top of disease tab
+                        if activeCategory == .disease {
+                            Button {
+                                withAnimation(.spring(response: 0.25)) {
+                                    draftDiseaseTemplate = nil
+                                }
+                            } label: {
+                                let isNone = draftDiseaseTemplate == nil
+                                HStack(spacing: 12) {
+                                    Image(systemName: "circle.slash")
+                                        .font(.title2)
+                                        .foregroundStyle(isNone ? .white : .secondary)
+                                        .frame(width: 32, height: 32)
+                                        .background(
+                                            Circle().fill(isNone ? Color.indigo : Color.secondary.opacity(0.12))
+                                        )
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text("No Disease Focus")
+                                            .font(.system(size: 14, weight: .semibold))
+                                            .foregroundStyle(isNone ? .white : .primary)
+                                        Text("Generate a general note without disease-specific guidance")
+                                            .font(.system(size: 11))
+                                            .foregroundStyle(isNone ? .white.opacity(0.8) : .secondary)
+                                    }
+                                    Spacer()
+                                    if isNone {
+                                        Image(systemName: "checkmark.circle.fill")
+                                            .foregroundStyle(.white.opacity(0.9))
+                                    }
+                                }
+                                .padding(14)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 14)
+                                        .fill(isNone ? Color.indigo : Color(UIColor.systemBackground))
+                                        .shadow(
+                                            color: isNone ? Color.indigo.opacity(0.35) : Color.black.opacity(0.06),
+                                            radius: isNone ? 8 : 3,
+                                            y: isNone ? 4 : 1
+                                        )
+                                )
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 14)
+                                        .stroke(
+                                            isNone ? Color.clear : Color(UIColor.separator).opacity(0.5),
+                                            lineWidth: 0.5
+                                        )
+                                )
+                            }
+                            .buttonStyle(.plain)
+                            .padding(.horizontal)
+                            .padding(.top, 16)
+                        }
+
                         LazyVGrid(columns: columns, spacing: 12) {
                             ForEach(visibleTemplates) { template in
                                 TemplateCard(
                                     template: template,
-                                    isSelected: draft.id == template.id
+                                    isSelected: activeCategory == .noteFormat
+                                        ? draftNoteFormat.id == template.id
+                                        : draftDiseaseTemplate?.id == template.id
                                 ) {
                                     withAnimation(.spring(response: 0.25)) {
-                                        draft = template
-                                    }
-                                    if template.id == "custom" {
-                                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                                            customEditorFocused = true
+                                        if activeCategory == .noteFormat {
+                                            draftNoteFormat = template
+                                            if template.id == "custom" {
+                                                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                                                    customEditorFocused = true
+                                                }
+                                            }
+                                        } else {
+                                            draftDiseaseTemplate = template
                                         }
                                     }
                                 }
                             }
                         }
                         .padding(.horizontal)
-                        .padding(.top, 16)
+                        .padding(.top, activeCategory == .disease ? 8 : 16)
 
                         // ── Custom prompt editor ───────────────────────────
-                        if draft.id == "custom" && activeCategory == .noteFormat {
+                        if draftNoteFormat.id == "custom" && activeCategory == .noteFormat {
                             VStack(alignment: .leading, spacing: 8) {
                                 Label("Custom Instructions", systemImage: "pencil.and.outline")
                                     .font(.headline)
@@ -133,30 +205,12 @@ struct TemplatePickerView: View {
                             .transition(.move(edge: .bottom).combined(with: .opacity))
                         }
 
-                        // ── Format preview (non-custom) ────────────────────
-                        if draft.id != "custom" && visibleTemplates.contains(where: { $0.id == draft.id }) {
-                            VStack(alignment: .leading, spacing: 8) {
-                                Label("Format Preview", systemImage: "doc.text.magnifyingglass")
-                                    .font(.headline)
-                                    .padding(.horizontal)
-
-                                Text(draft.promptInstructions
-                                    .replacingOccurrences(of: "**", with: "")
-                                    .components(separatedBy: "\n")
-                                    .filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
-                                    .prefix(10)
-                                    .joined(separator: "\n")
-                                )
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                                .lineLimit(12)
-                                .padding(12)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .background(Color(UIColor.secondarySystemBackground))
-                                .clipShape(RoundedRectangle(cornerRadius: 10))
-                                .padding(.horizontal)
-                            }
-                            .transition(.opacity)
+                        // ── Prompt preview ─────────────────────────────────
+                        if activeCategory == .noteFormat && draftNoteFormat.id != "custom" {
+                            promptPreview(text: draftNoteFormat.promptInstructions, label: "Format Preview")
+                        }
+                        if activeCategory == .disease, let disease = draftDiseaseTemplate {
+                            promptPreview(text: disease.promptInstructions, label: "Focus Preview")
                         }
 
                         Spacer(minLength: 20)
@@ -164,35 +218,59 @@ struct TemplatePickerView: View {
                 }
             }
             .background(Color(UIColor.systemGroupedBackground))
-            .navigationTitle("Note Template")
+            .navigationTitle(activeCategory == .noteFormat ? "Note Format" : "Disease Focus")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Use Template") {
-                        if draft.id == "custom" && draftCustomPrompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                            customEditorFocused = true
-                            return
+                    Button(activeCategory == .noteFormat ? "Use Format" : "Apply") {
+                        if activeCategory == .noteFormat {
+                            if draftNoteFormat.id == "custom"
+                                && draftCustomPrompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                                customEditorFocused = true
+                                return
+                            }
+                            selectedNoteFormat = draftNoteFormat
+                            customPrompt = draftCustomPrompt
+                        } else {
+                            selectedDiseaseTemplate = draftDiseaseTemplate
                         }
-                        selectedTemplate = draft
-                        customPrompt = draftCustomPrompt
                         onConfirm()
                         dismiss()
                     }
                     .fontWeight(.semibold)
-                    .tint(.teal)
-                }
-            }
-            // When switching category, keep draft if it's in the new category;
-            // otherwise preview the first template of the new category
-            .onChange(of: activeCategory) { newCat in
-                if draft.category != newCat {
-                    // Don't change the committed selection — just preview the first
+                    .tint(activeCategory == .noteFormat ? .teal : .indigo)
                 }
             }
         }
+    }
+
+    @ViewBuilder
+    private func promptPreview(text: String, label: String) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Label(label, systemImage: "doc.text.magnifyingglass")
+                .font(.headline)
+                .padding(.horizontal)
+
+            Text(text
+                .replacingOccurrences(of: "**", with: "")
+                .components(separatedBy: "\n")
+                .filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
+                .prefix(10)
+                .joined(separator: "\n")
+            )
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .lineLimit(12)
+            .padding(12)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Color(UIColor.secondarySystemBackground))
+            .clipShape(RoundedRectangle(cornerRadius: 10))
+            .padding(.horizontal)
+        }
+        .transition(.opacity)
     }
 }
 

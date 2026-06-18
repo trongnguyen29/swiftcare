@@ -36,10 +36,20 @@ struct VisitView: View {
     @State private var copiedTranscript = false
     @State private var copiedNote = false
 
-    // Template
-    @State private var selectedTemplate: TranscriptionTemplate = TemplateStore.shared.selectedTemplate
+    // Template — two independent selections
+    @State private var selectedNoteFormat: TranscriptionTemplate = TemplateStore.shared.selectedNoteFormat
+    @State private var selectedDiseaseTemplate: TranscriptionTemplate? = TemplateStore.shared.selectedDiseaseTemplate
     @State private var customPrompt: String = TemplateStore.shared.customPrompt
-    @State private var showTemplatePicker = false
+    @State private var showNoteFormatPicker = false
+    @State private var showDiseasePicker = false
+
+    // Show template selectors only when not actively recording / transcribing
+    private var showTemplateSelectors: Bool {
+        switch recorderState {
+        case .idle, .error, .done: return true
+        default: return false
+        }
+    }
 
     var body: some View {
         ScrollView {
@@ -52,14 +62,26 @@ struct VisitView: View {
         }
         .background(Color(UIColor.systemGroupedBackground))
         .onAppear { loadHistory() }
-        .sheet(isPresented: $showTemplatePicker) {
+        .sheet(isPresented: $showNoteFormatPicker) {
             TemplatePickerView(
-                selectedTemplate: $selectedTemplate,
-                customPrompt: $customPrompt
+                selectedNoteFormat: $selectedNoteFormat,
+                selectedDiseaseTemplate: $selectedDiseaseTemplate,
+                customPrompt: $customPrompt,
+                initialCategory: .noteFormat
             ) {
-                // Persist to shared store
-                TemplateStore.shared.selectedTemplate = selectedTemplate
+                TemplateStore.shared.selectedNoteFormat = selectedNoteFormat
                 TemplateStore.shared.customPrompt = customPrompt
+            }
+            .presentationDetents([.large])
+        }
+        .sheet(isPresented: $showDiseasePicker) {
+            TemplatePickerView(
+                selectedNoteFormat: $selectedNoteFormat,
+                selectedDiseaseTemplate: $selectedDiseaseTemplate,
+                customPrompt: $customPrompt,
+                initialCategory: .disease
+            ) {
+                TemplateStore.shared.selectedDiseaseTemplate = selectedDiseaseTemplate
             }
             .presentationDetents([.large])
         }
@@ -69,8 +91,102 @@ struct VisitView: View {
 
     var recorderCard: some View {
         CardView(title: "Visit Recorder", icon: "mic.fill") {
-            VStack(spacing: 20) {
-                // Status badge
+            VStack(spacing: 16) {
+
+                // ── Note Format + Disease Focus selectors ──────────────────
+                if showTemplateSelectors {
+                    VStack(alignment: .leading, spacing: 10) {
+
+                        // Note Format row
+                        VStack(alignment: .leading, spacing: 5) {
+                            HStack {
+                                Label("Note Format", systemImage: "doc.text")
+                                    .font(.caption.bold())
+                                    .foregroundStyle(.secondary)
+                                Spacer()
+                                Button {
+                                    showNoteFormatPicker = true
+                                } label: {
+                                    HStack(spacing: 2) {
+                                        Text("More")
+                                        Image(systemName: "chevron.right")
+                                    }
+                                    .font(.caption)
+                                    .foregroundStyle(.teal)
+                                }
+                            }
+                            ScrollView(.horizontal, showsIndicators: false) {
+                                HStack(spacing: 6) {
+                                    ForEach(TranscriptionTemplate.noteFormatTemplates) { fmt in
+                                        InlineChip(
+                                            label: fmt.name,
+                                            icon: fmt.icon,
+                                            isSelected: selectedNoteFormat.id == fmt.id,
+                                            accent: .teal
+                                        ) {
+                                            selectedNoteFormat = fmt
+                                            TemplateStore.shared.selectedNoteFormat = fmt
+                                        }
+                                    }
+                                }
+                                .padding(.vertical, 2)
+                            }
+                        }
+
+                        Divider()
+
+                        // Disease Focus row
+                        VStack(alignment: .leading, spacing: 5) {
+                            HStack {
+                                Label("Disease Focus", systemImage: "cross.case")
+                                    .font(.caption.bold())
+                                    .foregroundStyle(.secondary)
+                                Spacer()
+                                Button {
+                                    showDiseasePicker = true
+                                } label: {
+                                    HStack(spacing: 2) {
+                                        Text("More")
+                                        Image(systemName: "chevron.right")
+                                    }
+                                    .font(.caption)
+                                    .foregroundStyle(.indigo)
+                                }
+                            }
+                            ScrollView(.horizontal, showsIndicators: false) {
+                                HStack(spacing: 6) {
+                                    // "None" chip — clears disease focus
+                                    InlineChip(
+                                        label: "None",
+                                        icon: "circle.slash",
+                                        isSelected: selectedDiseaseTemplate == nil,
+                                        accent: .indigo
+                                    ) {
+                                        selectedDiseaseTemplate = nil
+                                        TemplateStore.shared.selectedDiseaseTemplate = nil
+                                    }
+                                    ForEach(TranscriptionTemplate.diseaseTemplates) { disease in
+                                        InlineChip(
+                                            label: disease.name,
+                                            icon: disease.icon,
+                                            isSelected: selectedDiseaseTemplate?.id == disease.id,
+                                            accent: .indigo
+                                        ) {
+                                            selectedDiseaseTemplate = disease
+                                            TemplateStore.shared.selectedDiseaseTemplate = disease
+                                        }
+                                    }
+                                }
+                                .padding(.vertical, 2)
+                            }
+                        }
+                    }
+                    .padding(12)
+                    .background(Color(UIColor.secondarySystemBackground))
+                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                }
+
+                // ── Status badge ───────────────────────────────────────────
                 HStack(spacing: 8) {
                     if case .recording = recorderState {
                         Circle().fill(Color.red).frame(width: 8, height: 8)
@@ -230,31 +346,18 @@ struct VisitView: View {
         CardView(title: "Clinical Note") {
             VStack(alignment: .leading, spacing: 12) {
 
-                // ── Template chip ──────────────────────────────────────────
-                Button {
-                    showTemplatePicker = true
-                } label: {
-                    HStack(spacing: 5) {
-                        Image(systemName: selectedTemplate.icon)
-                            .font(.system(size: 10, weight: .semibold))
-                        Text(selectedTemplate.name)
-                            .font(.system(size: 12, weight: .semibold))
-                        Image(systemName: "chevron.down")
-                            .font(.system(size: 9, weight: .semibold))
+                // ── Active selection indicator ─────────────────────────────
+                HStack(spacing: 6) {
+                    Label(selectedNoteFormat.name, systemImage: selectedNoteFormat.icon)
+                        .font(.caption.bold())
+                        .foregroundStyle(.teal)
+                    if let disease = selectedDiseaseTemplate {
+                        Text("·").font(.caption).foregroundStyle(.secondary)
+                        Label(disease.name, systemImage: disease.icon)
+                            .font(.caption.bold())
+                            .foregroundStyle(.indigo)
                     }
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 6)
-                    .background(
-                        Capsule()
-                            .fill(Color.teal.opacity(0.12))
-                    )
-                    .overlay(
-                        Capsule()
-                            .stroke(Color.teal.opacity(0.3), lineWidth: 1)
-                    )
-                    .foregroundColor(.teal)
                 }
-                .buttonStyle(.plain)
 
                 // ── Actions ────────────────────────────────────────────────
                 HStack(spacing: 10) {
@@ -322,8 +425,7 @@ struct VisitView: View {
                     .overlay(
                         Group {
                             if clinicalNote.isEmpty && !noteGenerating {
-
-                                Text("Tap ✦ Generate Note for an AI-drafted \(selectedTemplate.name), or type manually…")
+                                Text("Tap ✦ Generate Note for an AI-drafted \(selectedNoteFormat.name) note, or type manually…")
                                     .font(.body).foregroundColor(.secondary).padding(12)
                                     .allowsHitTesting(false)
                             }
@@ -388,7 +490,11 @@ struct VisitView: View {
         noteError = nil
         do {
             let context = PatientContext.build(for: patient)
-            let effectivePrompt = selectedTemplate.id == "custom" ? customPrompt : selectedTemplate.promptInstructions
+            // Sync local state to store so effectivePromptInstructions is current
+            TemplateStore.shared.selectedNoteFormat = selectedNoteFormat
+            TemplateStore.shared.selectedDiseaseTemplate = selectedDiseaseTemplate
+            TemplateStore.shared.customPrompt = customPrompt
+            let effectivePrompt = TemplateStore.shared.effectivePromptInstructions
             clinicalNote = try await APIService.shared.summarizeTranscript(
                 transcript: transcript,
                 patientContext: context,
@@ -402,7 +508,15 @@ struct VisitView: View {
     }
 
     func saveNote() {
-        NotesService.shared.saveNote(patientId: patient.ptnum, transcript: transcript, notes: clinicalNote, templateName: selectedTemplate.name)
+        let templateName = selectedDiseaseTemplate
+            .map { "\(selectedNoteFormat.name) · \($0.name)" }
+            ?? selectedNoteFormat.name
+        NotesService.shared.saveNote(
+            patientId: patient.ptnum,
+            transcript: transcript,
+            notes: clinicalNote,
+            templateName: templateName
+        )
         saved = true
         loadHistory()
     }
@@ -415,5 +529,39 @@ struct VisitView: View {
         let m = Int(interval) / 60
         let s = Int(interval) % 60
         return String(format: "%02d:%02d", m, s)
+    }
+}
+
+// MARK: - InlineChip
+
+/// Compact horizontal-scroll pill used in the pre-record template selector rows.
+private struct InlineChip: View {
+    let label: String
+    let icon: String
+    let isSelected: Bool
+    let accent: Color
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 5) {
+                Image(systemName: icon)
+                    .font(.system(size: 10, weight: .semibold))
+                Text(label)
+                    .font(.system(size: 12, weight: .semibold))
+                    .lineLimit(1)
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            .background(
+                Capsule().fill(isSelected ? accent : accent.opacity(0.08))
+            )
+            .overlay(
+                Capsule().stroke(isSelected ? accent : accent.opacity(0.3), lineWidth: 1)
+            )
+            .foregroundStyle(isSelected ? Color.white : accent)
+        }
+        .buttonStyle(.plain)
+        .animation(.spring(response: 0.2, dampingFraction: 0.75), value: isSelected)
     }
 }
