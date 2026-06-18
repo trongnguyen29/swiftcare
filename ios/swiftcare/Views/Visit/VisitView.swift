@@ -43,6 +43,9 @@ struct VisitView: View {
     @State private var showNoteFormatPicker = false
     @State private var showDiseasePicker = false
 
+    // Language
+    @State private var selectedLanguage: TranscriptionLanguage = .persisted
+
     // Show template selectors only when not actively recording / transcribing
     private var showTemplateSelectors: Bool {
         switch recorderState {
@@ -174,6 +177,31 @@ struct VisitView: View {
                                         ) {
                                             selectedDiseaseTemplate = disease
                                             TemplateStore.shared.selectedDiseaseTemplate = disease
+                                        }
+                                    }
+                                }
+                                .padding(.vertical, 2)
+                            }
+                        }
+
+                        Divider()
+
+                        // Language row
+                        VStack(alignment: .leading, spacing: 5) {
+                            Label("Language", systemImage: "globe")
+                                .font(.caption.bold())
+                                .foregroundStyle(.secondary)
+                            ScrollView(.horizontal, showsIndicators: false) {
+                                HStack(spacing: 6) {
+                                    ForEach(TranscriptionLanguage.all) { lang in
+                                        InlineChip(
+                                            label: "\(lang.flag) \(lang.name)",
+                                            icon: "",
+                                            isSelected: selectedLanguage.id == lang.id,
+                                            accent: .teal
+                                        ) {
+                                            selectedLanguage = lang
+                                            TranscriptionLanguage.persisted = lang
                                         }
                                     }
                                 }
@@ -475,7 +503,12 @@ struct VisitView: View {
 
         Task {
             do {
-                let text = try await APIService.shared.transcribeAudio(audioB64: audioB64, mimeType: "audio/wav", patientId: patient.ptnum)
+                let text = try await APIService.shared.transcribeAudio(
+                    audioB64: audioB64,
+                    mimeType: "audio/wav",
+                    patientId: patient.ptnum,
+                    language: selectedLanguage.id
+                )
                 transcript = text
                 recorderState = .done
             } catch {
@@ -537,7 +570,7 @@ struct VisitView: View {
 /// Compact horizontal-scroll pill used in the pre-record template selector rows.
 private struct InlineChip: View {
     let label: String
-    let icon: String
+    let icon: String        // SF Symbol name; pass "" to show label only (e.g. flag emoji chips)
     let isSelected: Bool
     let accent: Color
     let action: () -> Void
@@ -545,8 +578,10 @@ private struct InlineChip: View {
     var body: some View {
         Button(action: action) {
             HStack(spacing: 5) {
-                Image(systemName: icon)
-                    .font(.system(size: 10, weight: .semibold))
+                if !icon.isEmpty {
+                    Image(systemName: icon)
+                        .font(.system(size: 10, weight: .semibold))
+                }
                 Text(label)
                     .font(.system(size: 12, weight: .semibold))
                     .lineLimit(1)
@@ -565,3 +600,4 @@ private struct InlineChip: View {
         .animation(.spring(response: 0.2, dampingFraction: 0.75), value: isSelected)
     }
 }
+

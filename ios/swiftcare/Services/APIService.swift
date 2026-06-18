@@ -135,15 +135,16 @@ class APIService {
         let audioB64: String
         let mimeType: String
         let patientId: String
+        let language: String
     }
     
-    func transcribeAudio(audioB64: String, mimeType: String, patientId: String) async throws -> String {
+    func transcribeAudio(audioB64: String, mimeType: String, patientId: String, language: String = "en") async throws -> String {
         let url = URL(string: "\(workerUrl)/api/transcribe")!
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         
-        let body = TranscribeRequest(audioB64: audioB64, mimeType: mimeType, patientId: patientId)
+        let body = TranscribeRequest(audioB64: audioB64, mimeType: mimeType, patientId: patientId, language: language)
         request.httpBody = try JSONEncoder().encode(body)
         
         let (data, response) = try await URLSession.shared.data(for: request)
