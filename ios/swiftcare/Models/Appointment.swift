@@ -91,3 +91,17 @@ extension Appointment {
         )
     ]
 }
+
+extension Patient {
+    static var mock: Patient {
+        let json = """
+        {
+            "ptnum": "MRN-847261",
+            "label": 0,
+            "first_name": "Sarah",
+            "last_name": "Chen"
+        }
+        """
+        return try! JSONDecoder().decode(Patient.self, from: json.data(using: .utf8)!)
+    }
+}

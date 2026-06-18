@@ -2,7 +2,7 @@ import SwiftUI
 
 struct PatientAppointmentsView: View {
     let patient: Patient
-    @State private var selectedDate: Date = Calendar.current.date(from: DateComponents(year: 2026, month: 6, 18)) ?? Date()
+    @State private var selectedDate: Date = Calendar.current.date(from: DateComponents(year: 2026, month: 6, day: 18)) ?? Date()
     @State private var showingScheduleSheet = false
     
     // Using mock data for demonstration

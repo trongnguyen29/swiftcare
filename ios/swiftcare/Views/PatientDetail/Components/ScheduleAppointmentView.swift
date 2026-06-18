@@ -201,5 +201,5 @@ struct FormField<Content: View>: View {
 
 #Preview {
     // Mock preview patient
-    ScheduleAppointmentView(patient: Patient(id: "1", firstName: "Sarah", lastName: "Chen", dateOfBirth: Date(), gender: .female, mrn: "123", riskScore: 87, conditions: [], upcomingAppointments: []))
+    ScheduleAppointmentView(patient: Patient.mock)
 }
