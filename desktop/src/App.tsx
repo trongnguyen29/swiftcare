@@ -7,12 +7,16 @@ import PatientBanner from './components/PatientBanner'
 import { AIChat } from './components/AIInsights'
 import VoiceRecorder from './components/VoiceRecorder'
 import TranscriptPanel from './components/TranscriptPanel'
+import HomeView from './components/HomeView'
 import type { Patient } from './lib/supabase'
+import { recordRecent } from './lib/recents'
 import './App.css'
 
 type PatientTab = 'overview' | 'chart' | 'visit'
+type AppView = 'home' | 'patient'
 
 export default function App() {
+  const [appView,    setAppView]    = useState<AppView>('home')
   const [selected,   setSelected]   = useState<Patient | null>(null)
   const [transcript, setTranscript] = useState('')
   const [activeTab,  setActiveTab]  = useState<PatientTab>('overview')
@@ -40,6 +44,8 @@ export default function App() {
     setTranscript('')
     setActiveTab('overview')
     setShowChat(false)
+    setAppView('patient')
+    recordRecent(p)
     if (scrollRef.current) scrollRef.current.scrollTop = 0
   }
 
@@ -146,8 +152,24 @@ export default function App() {
           <span style={{ color: 'var(--text-muted)', fontWeight: 400, fontSize: 13 }}>Desktop</span>
         </div>
         <div className="header-divider" />
-        <span className="header-subtitle">EHR Visit Assistant</span>
+        <button
+          className={`settings-btn ${appView === 'home' ? 'settings-btn--active' : ''}`}
+          onClick={() => setAppView('home')}
+        >
+          ⌂ Home
+        </button>
         <div className="header-spacer" />
+        <button
+          className="btn-quick-record-header"
+          onClick={() => {
+            setAppView('patient')
+            setRecordSignal(n => n + 1)
+            goToSection('visit')
+          }}
+        >
+          <span className="rec-dot-btn" style={{ marginRight: 6 }} /> Quick Record
+        </button>
+        <div className="header-divider" />
         <button
           className="settings-btn"
           onClick={() => setShowSettings(!showSettings)}
@@ -191,7 +213,13 @@ export default function App() {
         <PatientSearch selected={selected} onSelect={selectPatient} />
 
         <main className="main-content">
-          {!selected ? (
+          {appView === 'home' ? (
+            <HomeView
+              onSelectPatient={selectPatient}
+              onQuickRecord={() => setRecordSignal(n => n + 1)}
+              onGoToVisit={() => { setAppView('patient'); goToSection('visit') }}
+            />
+          ) : !selected ? (
             <div className="empty-state">
               <div className="empty-icon">SC</div>
               <div className="empty-title">Select a patient</div>
