@@ -1,15 +1,24 @@
 import Foundation
+import SwiftUI
 
-enum AppointmentType: String, Codable {
-    case inPerson = "In-Person"
-    case telehealth = "Telehealth"
-    case phone = "Phone"
-    
+enum AppointmentType: String, Codable, CaseIterable {
+    case newPatient   = "New Patient"
+    case followUp     = "Follow Up"
+    case physicalExam = "Physical Exam"
+
     var icon: String {
         switch self {
-        case .inPerson: return "mappin.and.ellipse"
-        case .telehealth: return "video"
-        case .phone: return "phone"
+        case .newPatient:   return "person.badge.plus"
+        case .followUp:     return "arrow.clockwise"
+        case .physicalExam: return "stethoscope"
+        }
+    }
+
+    var color: Color {
+        switch self {
+        case .newPatient:   return .blue
+        case .followUp:     return .teal
+        case .physicalExam: return .purple
         }
     }
 }
@@ -62,7 +71,7 @@ extension Appointment {
             patientName: "Sarah Chen",
             date: Calendar.current.date(from: DateComponents(year: 2026, month: 6, day: 18, hour: 9, minute: 0))!,
             durationMinutes: 30,
-            type: .inPerson,
+            type: .followUp,
             status: .confirmed,
             reason: "Follow-up: Pulmonary Function Test Results",
             doctorName: "Dr. Marcus Webb",
@@ -75,7 +84,7 @@ extension Appointment {
             patientName: "Michael Rodriguez",
             date: Calendar.current.date(from: DateComponents(year: 2026, month: 6, day: 18, hour: 10, minute: 30))!,
             durationMinutes: 45,
-            type: .telehealth,
+            type: .followUp,
             status: .scheduled,
             reason: "Medication Review — Metoprolol Titration",
             doctorName: "Dr. Marcus Webb",
@@ -88,7 +97,7 @@ extension Appointment {
             patientName: "Emily Johnson",
             date: Calendar.current.date(from: DateComponents(year: 2026, month: 6, day: 19, hour: 14, minute: 0))!,
             durationMinutes: 60,
-            type: .inPerson,
+            type: .physicalExam,
             status: .scheduled,
             reason: "Annual Wellness Exam + CT Review",
             doctorName: "Dr. Marcus Webb",
@@ -101,7 +110,7 @@ extension Appointment {
             patientName: "Sarah Chen",
             date: Calendar.current.date(from: DateComponents(year: 2026, month: 6, day: 23, hour: 11, minute: 0))!,
             durationMinutes: 30,
-            type: .phone,
+            type: .newPatient,
             status: .scheduled,
             reason: "Lab Results Discussion",
             doctorName: "Dr. Marcus Webb",

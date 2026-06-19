@@ -5,6 +5,12 @@ struct GlobalAppointmentsView: View {
     @State private var showingScheduleSheet = false
     @State private var appointments: [Appointment] = []
     @State private var isLoading = false
+    @State private var typeFilter: AppointmentType? = nil
+
+    var filteredAppointments: [Appointment] {
+        guard let filter = typeFilter else { return appointments }
+        return appointments.filter { $0.type == filter }
+    }
     
     var body: some View {
         NavigationStack {
@@ -59,7 +65,7 @@ struct GlobalAppointmentsView: View {
                                 Text("Upcoming Appointments")
                                     .font(.title2)
                                     .fontWeight(.bold)
-                                Text("\(appointments.count) scheduled across all patients")
+                                Text("\(filteredAppointments.count) scheduled across all patients")
                                     .font(.subheadline)
                                     .foregroundColor(.secondary)
                             }
@@ -108,10 +114,22 @@ struct GlobalAppointmentsView: View {
                             }
                         }
                         .padding(.bottom, 8)
-                        
+
+                        // Filter pills
+                        HStack(spacing: 8) {
+                            FilterPill(label: "All", isSelected: typeFilter == nil) {
+                                typeFilter = nil
+                            }
+                            ForEach(AppointmentType.allCases, id: \.self) { type in
+                                FilterPill(label: type.rawValue, isSelected: typeFilter == type, color: type.color) {
+                                    typeFilter = typeFilter == type ? nil : type
+                                }
+                            }
+                        }
+
                         // Cards
                         VStack(spacing: 16) {
-                            ForEach(appointments.sorted(by: { $0.date < $1.date })) { appt in
+                            ForEach(filteredAppointments.sorted(by: { $0.date < $1.date })) { appt in
                                 AppointmentCardView(
                                     appointment: appt,
                                     patientName: appt.patientName,
@@ -146,6 +164,27 @@ struct GlobalAppointmentsView: View {
         let formatter = DateFormatter()
         formatter.dateFormat = "MMMM d, yyyy"
         return formatter.string(from: date).uppercased()
+    }
+}
+
+struct FilterPill: View {
+    let label: String
+    let isSelected: Bool
+    var color: Color = Color(red: 0.1, green: 0.2, blue: 0.4)
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Text(label)
+                .font(.subheadline)
+                .fontWeight(isSelected ? .semibold : .regular)
+                .foregroundColor(isSelected ? .white : color)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 7)
+                .background(isSelected ? color : color.opacity(0.08))
+                .cornerRadius(20)
+        }
+        .buttonStyle(PlainButtonStyle())
     }
 }
 

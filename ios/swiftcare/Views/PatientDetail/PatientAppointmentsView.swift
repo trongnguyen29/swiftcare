@@ -156,7 +156,7 @@ struct MiniAppointmentCard: View {
                 Spacer()
                 Text(appointment.type.rawValue)
                     .font(.caption)
-                    .foregroundColor(typeColor(for: appointment.type))
+                    .foregroundColor(appointment.type.color)
             }
             
             Text(patientName)
@@ -198,13 +198,6 @@ struct MiniAppointmentCard: View {
         return formatter.string(from: date)
     }
     
-    private func typeColor(for type: AppointmentType) -> Color {
-        switch type {
-        case .inPerson: return .primary
-        case .telehealth: return .teal
-        case .phone: return .purple
-        }
-    }
 }
 
 // MARK: - Custom Calendar

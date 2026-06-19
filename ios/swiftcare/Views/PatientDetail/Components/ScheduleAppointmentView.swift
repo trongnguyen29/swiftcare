@@ -7,7 +7,7 @@ struct ScheduleAppointmentView: View {
     // Form State
     @State private var selectedDate = Date()
     @State private var selectedTime = "9:00 AM"
-    @State private var visitType: AppointmentType = .inPerson
+    @State private var visitType: AppointmentType = .newPatient
     @State private var duration = "30 min"
     @State private var provider = "Dr. Marcus Webb"
     @State private var reason = ""
@@ -89,9 +89,9 @@ struct ScheduleAppointmentView: View {
                     HStack(spacing: 16) {
                         FormField(label: "VISIT TYPE") {
                             Menu {
-                                Button("In-Person") { visitType = .inPerson }
-                                Button("Telehealth") { visitType = .telehealth }
-                                Button("Phone") { visitType = .phone }
+                                ForEach(AppointmentType.allCases, id: \.self) { type in
+                                    Button(type.rawValue) { visitType = type }
+                                }
                             } label: {
                                 HStack {
                                     Text(visitType.rawValue).foregroundColor(.primary)
