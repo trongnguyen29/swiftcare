@@ -376,8 +376,9 @@ private extension String {
 // MARK: - AppointmentType CaseIterable
 
 extension AppointmentType: CaseIterable {
+    // Only the values the DB check constraint allows for new inserts.
     static var allCases: [AppointmentType] {
-        [.newPatient, .followUp, .physicalExam, .inPerson, .telehealth, .phone]
+        [.newPatient, .followUp, .physicalExam]
     }
 }
 
