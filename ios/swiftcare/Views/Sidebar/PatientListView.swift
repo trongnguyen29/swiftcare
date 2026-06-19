@@ -34,7 +34,7 @@ struct PatientListView: View {
         let q = query.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         if !q.isEmpty {
             list = list.filter {
-                $0.displayName.lowercased().contains(q) || $0.ptnum.lowercased().contains(q)
+                $0.displayName.lowercased().contains(q)
             }
         }
         
@@ -54,7 +54,7 @@ struct PatientListView: View {
                     .font(.headline)
                     .padding(.horizontal)
                 
-                TextField("Search by name or ID…", text: $query)
+                TextField("Search by name…", text: $query)
                     .textFieldStyle(RoundedBorderTextFieldStyle())
                     .padding(.horizontal)
                 
@@ -70,7 +70,7 @@ struct PatientListView: View {
                     .pickerStyle(SegmentedPickerStyle())
                 }
                 .padding(.horizontal)
-                .onChange(of: filter) { _ in Task { await loadPatients() } }
+                .onChange(of: filter) { Task { await loadPatients() } }
 
                 // Sort (Name / Risk)
                 HStack {
@@ -110,6 +110,8 @@ struct PatientListView: View {
                         .tag(p)
                         .listRowInsets(EdgeInsets())
                         .listRowBackground(selectedPatient?.id == p.id ? Color.teal.opacity(0.1) : Color.clear)
+                        .contentShape(Rectangle())
+                        .onTapGesture { selectedPatient = p }
                 }
                 .listStyle(PlainListStyle())
             }

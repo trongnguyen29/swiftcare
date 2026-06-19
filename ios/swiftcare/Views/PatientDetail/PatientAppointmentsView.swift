@@ -2,14 +2,14 @@ import SwiftUI
 
 struct PatientAppointmentsView: View {
     let patient: Patient
-    @State private var selectedDate: Date = Calendar.current.date(from: DateComponents(year: 2026, month: 6, day: 18)) ?? Date()
+    @ObservedObject private var appointmentStore = AppointmentStore.shared
+    @State private var selectedDate = Date()
     @State private var showingScheduleSheet = false
+    @State private var showingReminderLog = false
     
     // Using mock data for demonstration
     var appointments: [Appointment] {
-        // Filter mocks for this patient (assuming patient-0 is Sarah Chen for mock purposes)
-        // In reality, this would filter by `patient.id`. Let's just return all mocks for visual completeness.
-        Appointment.mocks
+        appointmentStore.appointments.filter { appointmentStore.patient(for: $0)?.mrn == patient.ptnum }
     }
     
     var body: some View {
@@ -18,7 +18,10 @@ struct PatientAppointmentsView: View {
                 // LEFT COLUMN
                 VStack(alignment: .leading, spacing: 24) {
                     // Custom Calendar Component
-                    CustomCalendarView(selectedDate: $selectedDate)
+                    CustomCalendarView(
+                        selectedDate: $selectedDate,
+                        appointmentDates: appointments.map(\.date)
+                    )
                     
                     Divider()
                     
@@ -29,7 +32,7 @@ struct PatientAppointmentsView: View {
                                 .font(.headline)
                                 .foregroundColor(.secondary)
                             Spacer()
-                            Button(action: {}) {
+                            Button(action: { showingScheduleSheet = true }) {
                                 HStack(spacing: 4) {
                                     Image(systemName: "plus")
                                     Text("New")
@@ -47,7 +50,10 @@ struct PatientAppointmentsView: View {
                                 .foregroundColor(.secondary)
                         } else {
                             ForEach(dayAppointments) { appt in
-                                MiniAppointmentCard(appointment: appt, patientName: patient.displayName)
+                                MiniAppointmentCard(
+                                    appointment: appt,
+                                    patientName: appt.mockPatient?.displayName ?? patient.displayName
+                                )
                             }
                         }
                     }
@@ -69,7 +75,7 @@ struct PatientAppointmentsView: View {
                         Spacer()
                         
                         HStack(spacing: 12) {
-                            Button(action: {}) {
+                            Button(action: { showingReminderLog = true }) {
                                 HStack {
                                     Image(systemName: "message")
                                     Text("Reminder Log")
@@ -117,8 +123,12 @@ struct PatientAppointmentsView: View {
                             // Provide mock MRN for visual completeness
                             AppointmentCardView(
                                 appointment: appt,
-                                patientName: patient.displayName,
-                                patientMRN: "MRN-847261"
+                                patientName: appt.mockPatient?.displayName ?? patient.displayName,
+                                patientMRN: appt.mockPatient?.mrn ?? patient.ptnum,
+                                onOpenPatient: nil,
+                                onSendReminder: {
+                                    try await appointmentStore.sendReminder(for: appt)
+                                }
                             )
                         }
                     }
@@ -129,7 +139,17 @@ struct PatientAppointmentsView: View {
         }
         .background(Color(UIColor.systemGroupedBackground))
         .sheet(isPresented: $showingScheduleSheet) {
-            ScheduleAppointmentView(patient: patient)
+            ScheduleAppointmentView(
+                initialPatient: patient,
+                initialDate: selectedDate
+            )
+            .presentationDetents([.large])
+        }
+        .sheet(isPresented: $showingReminderLog) {
+            ReminderLogView()
+        }
+        .task {
+            await appointmentStore.loadAppointments()
         }
     }
     
@@ -199,6 +219,9 @@ struct MiniAppointmentCard: View {
         case .inPerson: return .primary
         case .telehealth: return .teal
         case .phone: return .purple
+        case .newPatient: return .blue
+        case .followUp: return .teal
+        case .physicalExam: return .indigo
         }
     }
 }
@@ -206,75 +229,107 @@ struct MiniAppointmentCard: View {
 // MARK: - Custom Calendar
 struct CustomCalendarView: View {
     @Binding var selectedDate: Date
-    
-    // Static mockup of calendar for June 2026 as seen in Figma
-    let daysOfWeek = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"]
-    let days = Array(1...30)
-    let columns = Array(repeating: GridItem(.flexible()), count: 7)
-    
+    let appointmentDates: [Date]
+
+    @State private var displayedMonth: Date
+
+    private let calendar = Calendar.current
+    private let daysOfWeek = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"]
+    private let columns = Array(repeating: GridItem(.flexible()), count: 7)
+
+    init(selectedDate: Binding<Date>, appointmentDates: [Date]) {
+        _selectedDate = selectedDate
+        self.appointmentDates = appointmentDates
+
+        let calendar = Calendar.current
+        let components = calendar.dateComponents([.year, .month], from: selectedDate.wrappedValue)
+        _displayedMonth = State(initialValue: calendar.date(from: components) ?? selectedDate.wrappedValue)
+    }
+
+    private var monthTitle: String {
+        displayedMonth.formatted(.dateTime.month(.wide).year())
+    }
+
+    private var monthDays: [Date?] {
+        guard let range = calendar.range(of: .day, in: .month, for: displayedMonth),
+              let firstDay = calendar.date(from: calendar.dateComponents([.year, .month], from: displayedMonth)) else {
+            return []
+        }
+
+        let firstWeekday = calendar.component(.weekday, from: firstDay)
+        let leadingDays = (firstWeekday - calendar.firstWeekday + 7) % 7
+        let days = range.compactMap { day in
+            calendar.date(byAdding: .day, value: day - 1, to: firstDay)
+        }
+        return Array<Date?>(repeating: nil, count: leadingDays) + days.map(Optional.some)
+    }
+
     var body: some View {
-        VStack(spacing: 16) {
-            // Header
+        VStack(spacing: 14) {
             HStack {
-                Image(systemName: "chevron.left")
-                    .foregroundColor(.secondary)
+                Button {
+                    displayedMonth = calendar.date(byAdding: .month, value: -1, to: displayedMonth) ?? displayedMonth
+                } label: {
+                    Image(systemName: "chevron.left")
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Previous month")
+
                 Spacer()
-                Text("June 2026")
+
+                Text(monthTitle)
                     .font(.headline)
+
                 Spacer()
-                Image(systemName: "chevron.right")
-                    .foregroundColor(.secondary)
+
+                Button {
+                    displayedMonth = calendar.date(byAdding: .month, value: 1, to: displayedMonth) ?? displayedMonth
+                } label: {
+                    Image(systemName: "chevron.right")
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Next month")
             }
-            .padding(.horizontal)
-            
-            // Days of week
+
             LazyVGrid(columns: columns, spacing: 8) {
                 ForEach(daysOfWeek, id: \.self) { day in
                     Text(day)
-                        .font(.caption2)
-                        .fontWeight(.bold)
+                        .font(.caption2.weight(.bold))
                         .foregroundColor(.secondary)
                 }
             }
-            
-            // Days grid (starting Tuesday)
-            LazyVGrid(columns: columns, spacing: 12) {
-                // Empty offset for Sunday and Monday
-                Text("").frame(height: 32)
-                Text("").frame(height: 32)
-                
-                ForEach(days, id: \.self) { day in
-                    let isSelected = day == 18
-                    let isToday = day == 17
-                    
-                    ZStack {
-                        if isSelected {
-                            Circle()
-                                .fill(Color(red: 0.1, green: 0.2, blue: 0.4)) // Navy
-                        } else if isToday {
-                            Circle()
-                                .stroke(Color.teal, lineWidth: 1.5)
-                        }
-                        
-                        VStack(spacing: 2) {
-                            Text("\(day)")
-                                .font(.system(size: 14))
-                                .fontWeight(isSelected ? .bold : .regular)
-                                .foregroundColor(isSelected ? .white : .primary)
-                            
-                            // Mock dots for events
-                            if [18, 19, 23, 25].contains(day) {
-                                Circle()
-                                    .fill(isSelected ? .white : .teal)
-                                    .frame(width: 4, height: 4)
-                            }
-                        }
-                    }
-                    .frame(height: 36)
-                    .onTapGesture {
-                        if let date = Calendar.current.date(from: DateComponents(year: 2026, month: 6, day: day)) {
+
+            LazyVGrid(columns: columns, spacing: 10) {
+                ForEach(Array(monthDays.indices), id: \.self) { index in
+                    if let date = monthDays[index] {
+                        let isSelected = calendar.isDate(date, inSameDayAs: selectedDate)
+                        let isToday = calendar.isDateInToday(date)
+                        let hasAppointment = appointmentDates.contains { calendar.isDate($0, inSameDayAs: date) }
+
+                        Button {
                             selectedDate = date
+                        } label: {
+                            ZStack {
+                                if isSelected {
+                                    Circle().fill(Color.teal)
+                                } else if isToday {
+                                    Circle().stroke(Color.teal, lineWidth: 1.5)
+                                }
+
+                                VStack(spacing: 2) {
+                                    Text(date.formatted(.dateTime.day()))
+                                        .font(.system(size: 14, weight: isSelected ? .bold : .regular))
+                                        .foregroundColor(isSelected ? .white : .primary)
+                                    Circle()
+                                        .fill(isSelected ? .white : (hasAppointment ? .teal : .clear))
+                                        .frame(width: 4, height: 4)
+                                }
+                            }
+                            .frame(height: 38)
                         }
+                        .buttonStyle(.plain)
+                    } else {
+                        Color.clear.frame(height: 38)
                     }
                 }
             }

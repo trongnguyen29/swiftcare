@@ -4,10 +4,45 @@ struct AppointmentCardView: View {
     let appointment: Appointment
     let patientName: String
     let patientMRN: String
+    let onOpenPatient: (() -> Void)?
+    let onSendReminder: (() async throws -> Void)?
+
+    @ObservedObject private var contacts = PatientContactStore.shared
+    @State private var sendingReminder = false
+    @State private var reminderError: String?
     
     var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            if let onOpenPatient {
+                Button(action: onOpenPatient) {
+                    appointmentContent
+                }
+                .buttonStyle(.plain)
+            } else {
+                appointmentContent
+            }
+
+            reminderControl
+        }
+        .padding()
+        .background(Color(UIColor.systemBackground))
+        .cornerRadius(16)
+        .overlay(
+            RoundedRectangle(cornerRadius: 16)
+                .stroke(Color(UIColor.separator), lineWidth: 0.5)
+        )
+        .alert("Reminder Not Sent", isPresented: Binding(
+            get: { reminderError != nil },
+            set: { if !$0 { reminderError = nil } }
+        )) {
+            Button("OK", role: .cancel) { reminderError = nil }
+        } message: {
+            Text(reminderError ?? "")
+        }
+    }
+
+    private var appointmentContent: some View {
         HStack(alignment: .top, spacing: 16) {
-            // Date Block
             VStack {
                 Text(monthString(from: appointment.date))
                     .font(.caption)
@@ -20,58 +55,83 @@ struct AppointmentCardView: View {
             .frame(width: 56, height: 64)
             .background(Color(UIColor.secondarySystemBackground))
             .cornerRadius(12)
-            
-            // Content
+
             VStack(alignment: .leading, spacing: 8) {
-                // Header row
-                HStack(alignment: .center) {
+                HStack(alignment: .center, spacing: 6) {
                     Text(patientName)
-                        .font(.headline)
-                        .fontWeight(.bold)
-                    
-                    Text(patientMRN)
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                    
+                        .font(.headline.weight(.bold))
                     StatusBadge(status: appointment.status)
-                    
-                    Spacer()
-                    
-                    ActionButton(isReminderSent: appointment.isReminderSent)
+                    if onOpenPatient != nil {
+                        Image(systemName: "chevron.right")
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                    }
                 }
-                
-                // Reason
+
                 Text(appointment.reason)
                     .font(.subheadline)
                     .foregroundColor(.primary)
-                
-                // Details Row
+
                 HStack(spacing: 16) {
-                    DetailItem(icon: "clock", text: "\(timeString(from: appointment.date)) • \(appointment.durationMinutes) min")
-                    
-                    DetailItem(icon: appointment.type.icon, text: appointment.type.rawValue, color: typeColor(for: appointment.type))
-                    
-                    DetailItem(icon: "stethoscope", text: appointment.doctorName)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(timeString(from: appointment.date))
+                            .font(.title3.bold())
+                            .monospacedDigit()
+                        Text("\(appointment.durationMinutes) min")
+                            .font(.caption.weight(.semibold))
+                            .foregroundColor(.teal)
+                    }
+                    .frame(minWidth: 78, alignment: .leading)
+
+                    VStack(alignment: .leading, spacing: 5) {
+                        DetailItem(icon: appointment.type.icon, text: appointment.type.rawValue, color: typeColor(for: appointment.type))
+                        DetailItem(icon: "stethoscope", text: appointment.doctorName)
+                    }
                 }
-                
-                // Phone Row
+
                 HStack {
                     Image(systemName: "phone")
                         .foregroundColor(.secondary)
                         .font(.caption)
-                    Text(appointment.phoneNumber)
+                    Text(displayedPhoneNumber)
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .padding()
-        .background(Color(UIColor.systemBackground))
-        .cornerRadius(16)
-        .overlay(
-            RoundedRectangle(cornerRadius: 16)
-                .stroke(Color(UIColor.separator), lineWidth: 0.5)
-        )
+        .contentShape(Rectangle())
+    }
+
+    @ViewBuilder
+    private var reminderControl: some View {
+        if appointment.isReminderSent {
+            ActionButton(isReminderSent: true)
+        } else if sendingReminder {
+            ProgressView()
+                .controlSize(.small)
+                .frame(width: 112, height: 30)
+        } else if onSendReminder != nil {
+            Button(action: sendReminder) {
+                ActionButton(isReminderSent: false)
+            }
+            .buttonStyle(.plain)
+        } else {
+            ActionButton(isReminderSent: false)
+        }
+    }
+
+    private func sendReminder() {
+        guard let onSendReminder else { return }
+        Task {
+            sendingReminder = true
+            defer { sendingReminder = false }
+            do {
+                try await onSendReminder()
+            } catch {
+                reminderError = error.localizedDescription
+            }
+        }
     }
     
     // Formatters & Helpers
@@ -98,7 +158,14 @@ struct AppointmentCardView: View {
         case .inPerson: return .primary
         case .telehealth: return .teal
         case .phone: return .purple
+        case .newPatient: return .blue
+        case .followUp: return .teal
+        case .physicalExam: return .indigo
         }
+    }
+
+    private var displayedPhoneNumber: String {
+        contacts.phone(forPtnum: patientMRN, fallback: appointment.phoneNumber) ?? "No phone on file"
     }
 }
 
@@ -177,7 +244,9 @@ struct DetailItem: View {
     AppointmentCardView(
         appointment: Appointment.mocks[0],
         patientName: "Sarah Chen",
-        patientMRN: "MRN-847261"
+        patientMRN: "MRN-847261",
+        onOpenPatient: nil,
+        onSendReminder: nil
     )
     .padding()
     .background(Color(UIColor.systemGroupedBackground))

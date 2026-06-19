@@ -1,163 +1,178 @@
 import SwiftUI
 
 struct GlobalAppointmentsView: View {
-    @State private var selectedDate: Date = Calendar.current.date(from: DateComponents(year: 2026, month: 6, day: 18)) ?? Date()
+    let onOpenPatient: (Patient) -> Void
+
+    @ObservedObject private var appointmentStore = AppointmentStore.shared
+    @State private var selectedDate = Date()
     @State private var showingScheduleSheet = false
-    
-    // Global mock data
-    var appointments: [Appointment] {
-        Appointment.mocks
+    @State private var showingReminderLog = false
+
+    private var dayAppointments: [Appointment] {
+        appointmentStore.appointments
+            .filter { Calendar.current.isDate($0.date, inSameDayAs: selectedDate) }
+            .sorted { $0.date < $1.date }
     }
-    
+
+    private var upcomingAppointments: [Appointment] {
+        dayAppointments.filter { $0.date >= Date() }
+    }
+
+    private var seenAppointments: [Appointment] {
+        dayAppointments.filter { $0.date < Date() }
+    }
+
+    init(onOpenPatient: @escaping (Patient) -> Void = { _ in }) {
+        self.onOpenPatient = onOpenPatient
+    }
+
     var body: some View {
         NavigationStack {
             ScrollView {
-                HStack(alignment: .top, spacing: 24) {
-                    // LEFT COLUMN
-                    VStack(alignment: .leading, spacing: 24) {
-                        // Reusing the CustomCalendarView from PatientAppointmentsView
-                        CustomCalendarView(selectedDate: $selectedDate)
-                        
-                        Divider()
-                        
-                        // Selected Date Overview
-                        VStack(alignment: .leading, spacing: 16) {
-                            HStack {
-                                Text(dateString(from: selectedDate))
-                                    .font(.headline)
-                                    .foregroundColor(.secondary)
-                                Spacer()
-                                Button(action: { showingScheduleSheet = true }) {
-                                    HStack(spacing: 4) {
-                                        Image(systemName: "plus")
-                                        Text("New")
-                                    }
-                                    .font(.subheadline.bold())
-                                }
-                            }
-                            
-                            // Show appointments for selected date
-                            let dayAppointments = appointments.filter { Calendar.current.isDate($0.date, inSameDayAs: selectedDate) }
-                            
-                            if dayAppointments.isEmpty {
-                                Text("No appointments scheduled.")
-                                    .font(.subheadline)
-                                    .foregroundColor(.secondary)
-                            } else {
-                                ForEach(dayAppointments) { appt in
-                                    MiniAppointmentCard(
-                                        appointment: appt,
-                                        patientName: mockName(for: appt.patientId)
-                                    )
-                                }
-                            }
-                        }
+                ViewThatFits(in: .horizontal) {
+                    HStack(alignment: .top, spacing: 24) {
+                        calendarRail
+                        agenda
                     }
-                    .frame(width: 320)
-                    
-                    // RIGHT COLUMN
-                    VStack(alignment: .leading, spacing: 16) {
-                        HStack {
-                            VStack(alignment: .leading) {
-                                Text("Upcoming Appointments")
-                                    .font(.title2)
-                                    .fontWeight(.bold)
-                                Text("\(appointments.count) scheduled across all patients")
-                                    .font(.subheadline)
-                                    .foregroundColor(.secondary)
-                            }
-                            
-                            Spacer()
-                            
-                            HStack(spacing: 12) {
-                                Button(action: {}) {
-                                    HStack {
-                                        Image(systemName: "message")
-                                        Text("Reminder Log")
-                                    }
-                                    .font(.subheadline.bold())
-                                    .padding(.horizontal, 16)
-                                    .padding(.vertical, 10)
-                                    .background(Color(UIColor.systemBackground))
-                                    .cornerRadius(8)
-                                    .overlay(
-                                        RoundedRectangle(cornerRadius: 8)
-                                            .stroke(Color(UIColor.separator), lineWidth: 1)
-                                    )
-                                    .overlay(
-                                        Circle()
-                                            .fill(Color.teal)
-                                            .frame(width: 20, height: 20)
-                                            .overlay(Text("1").font(.caption2.bold()).foregroundColor(.white))
-                                            .offset(x: 10, y: -10)
-                                        , alignment: .topTrailing
-                                    )
-                                }
-                                .buttonStyle(PlainButtonStyle())
-                                
-                                Button(action: { showingScheduleSheet = true }) {
-                                    HStack {
-                                        Image(systemName: "plus")
-                                        Text("Schedule Appointment")
-                                    }
-                                    .font(.subheadline.bold())
-                                    .foregroundColor(.white)
-                                    .padding(.horizontal, 16)
-                                    .padding(.vertical, 10)
-                                    .background(Color(red: 0.1, green: 0.2, blue: 0.4))
-                                    .cornerRadius(8)
-                                }
-                                .buttonStyle(PlainButtonStyle())
-                            }
-                        }
-                        .padding(.bottom, 8)
-                        
-                        // Cards
-                        VStack(spacing: 16) {
-                            ForEach(appointments.sorted(by: { $0.date < $1.date })) { appt in
-                                AppointmentCardView(
-                                    appointment: appt,
-                                    patientName: mockName(for: appt.patientId),
-                                    patientMRN: mockMRN(for: appt.patientId)
-                                )
-                            }
-                        }
+
+                    VStack(alignment: .leading, spacing: 20) {
+                        calendarRail
+                        agenda
                     }
-                    .frame(maxWidth: .infinity)
                 }
                 .padding()
             }
             .background(Color(UIColor.systemGroupedBackground))
-            .navigationTitle("Appointments")
+            .toolbar(.hidden, for: .navigationBar)
             .sheet(isPresented: $showingScheduleSheet) {
-                // For a global view, we create a dummy patient just to fulfill the ScheduleAppointmentView parameter,
-                // or we could refactor ScheduleAppointmentView to take an optional patient.
-                ScheduleAppointmentView(patient: Patient.mock)
+                ScheduleAppointmentView(initialDate: selectedDate) { appointment in
+                    selectedDate = appointment.date
+                }
+                .presentationDetents([.large])
+            }
+            .sheet(isPresented: $showingReminderLog) {
+                ReminderLogView()
+            }
+        }
+        .task {
+            await appointmentStore.loadAppointments()
+        }
+    }
+
+    private var calendarRail: some View {
+        CustomCalendarView(
+            selectedDate: $selectedDate,
+            appointmentDates: appointmentStore.appointments.map(\.date)
+        )
+        .frame(width: 320)
+    }
+
+    private var agenda: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            HStack(alignment: .top, spacing: 12) {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(selectedDate.formatted(.dateTime.weekday(.wide).month().day()))
+                        .font(.title3.bold())
+                    Text("\(dayAppointments.count) \(dayAppointments.count == 1 ? "appointment" : "appointments")")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                }
+
+                Spacer()
+
+                Button { showingReminderLog = true } label: {
+                    Label("Reminder Log", systemImage: "bell.badge")
+                }
+                .buttonStyle(.bordered)
+
+                Button { showingScheduleSheet = true } label: {
+                    Image(systemName: "plus")
+                }
+                .buttonStyle(.borderedProminent)
+                .accessibilityLabel("Schedule appointment")
+            }
+
+            if dayAppointments.isEmpty {
+                ContentUnavailableView(
+                    "No appointments",
+                    systemImage: "calendar",
+                    description: Text("Choose another date or add an appointment."))
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 40)
+            } else {
+                if !upcomingAppointments.isEmpty {
+                    appointmentSection("Upcoming", appointments: upcomingAppointments, isSeen: false)
+                }
+                if !seenAppointments.isEmpty {
+                    appointmentSection("Seen", appointments: seenAppointments, isSeen: true)
+                }
+            }
+        }
+        .frame(minWidth: 340, maxWidth: .infinity, alignment: .leading)
+    }
+
+    @ViewBuilder
+    private func appointmentSection(_ title: String, appointments: [Appointment], isSeen: Bool) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(title.uppercased())
+                .font(.caption.weight(.bold))
+                .foregroundColor(.secondary)
+
+            ForEach(appointments) { appointment in
+                let patient = appointmentStore.patient(for: appointment)
+                AppointmentCardView(
+                    appointment: appointment,
+                    patientName: patient?.displayName ?? "Unknown Patient",
+                    patientMRN: patient?.mrn ?? "MRN-000000",
+                    onOpenPatient: {
+                        if let patient {
+                            onOpenPatient(patient.profilePatient)
+                        }
+                    },
+                    onSendReminder: {
+                        try await appointmentStore.sendReminder(for: appointment)
+                    }
+                )
+                .opacity(isSeen ? 0.76 : 1)
             }
         }
     }
-    
-    private func dateString(from date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "MMMM d, yyyy"
-        return formatter.string(from: date).uppercased()
-    }
-    
-    private func mockName(for id: String) -> String {
-        switch id {
-        case "patient-0": return "Sarah Chen"
-        case "patient-1": return "Michael Rodriguez"
-        case "patient-2": return "Emily Johnson"
-        default: return "Unknown Patient"
-        }
-    }
-    
-    private func mockMRN(for id: String) -> String {
-        switch id {
-        case "patient-0": return "MRN-847261"
-        case "patient-1": return "MRN-592847"
-        case "patient-2": return "MRN-318529"
-        default: return "MRN-000000"
+}
+
+struct ReminderLogView: View {
+    @ObservedObject private var appointmentStore = AppointmentStore.shared
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            Group {
+                if appointmentStore.reminderLog.isEmpty {
+                    ContentUnavailableView(
+                        "No reminders sent",
+                        systemImage: "bell.slash",
+                        description: Text("Sent appointment reminders will appear here."))
+                } else {
+                    List(appointmentStore.reminderLog) { entry in
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(entry.patientName)
+                                .font(.headline)
+                            Text(entry.phoneNumber)
+                                .font(.subheadline)
+                                .foregroundColor(.secondary)
+                            Text(entry.sentAt.formatted(.dateTime.month().day().hour().minute()))
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                        .padding(.vertical, 3)
+                    }
+                }
+            }
+            .navigationTitle("Reminder Log")
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Done") { dismiss() }
+                }
+            }
         }
     }
 }

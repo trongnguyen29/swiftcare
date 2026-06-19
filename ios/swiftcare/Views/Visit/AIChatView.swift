@@ -119,10 +119,10 @@ struct AIChatView: View {
                         }
                         .padding(.vertical)
                     }
-                    .onChange(of: messages.count) { _ in
+                    .onChange(of: messages.count) {
                         withAnimation { proxy.scrollTo(messages.last?.id) }
                     }
-                    .onChange(of: isLoading) { _ in
+                    .onChange(of: isLoading) {
                         if isLoading { withAnimation { proxy.scrollTo("loading") } }
                     }
                 }

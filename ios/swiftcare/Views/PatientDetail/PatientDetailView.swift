@@ -1,16 +1,18 @@
 import SwiftUI
 
 enum PatientTab: String, CaseIterable {
-    case overview = "Overview"
-    case chart = "Chart"
-    case visit = "Visit"
+    case overview     = "Overview"
+    case chart        = "Chart"
+    case visit        = "Visit"
+    case pastVisits   = "History"
     case appointments = "Appointments"
-    
+
     var icon: String {
         switch self {
-        case .overview: return "square.grid.2x2"
-        case .chart: return "chart.bar.doc.horizontal"
-        case .visit: return "waveform.circle"
+        case .overview:     return "square.grid.2x2"
+        case .chart:        return "chart.bar.doc.horizontal"
+        case .visit:        return "waveform.circle"
+        case .pastVisits:   return "clock.arrow.circlepath"
         case .appointments: return "calendar"
         }
     }
@@ -20,8 +22,8 @@ struct PatientDetailView: View {
     let patient: Patient
     @State private var activeTab: PatientTab = .overview
     @State private var showAIChat = false
-    @State private var startRecordingSignal = false
-    
+    @State private var startRecordingSignal = 0
+
     var body: some View {
         VStack(spacing: 0) {
             // Banner
@@ -30,7 +32,7 @@ struct PatientDetailView: View {
                 onAskAI: { showAIChat = true },
                 onStartRecording: {
                     activeTab = .visit
-                    startRecordingSignal.toggle()
+                    startRecordingSignal += 1
                 }
             )
             .padding()
@@ -88,8 +90,14 @@ struct PatientDetailView: View {
                     .background(Color(UIColor.systemGroupedBackground))
 
                 case .visit:
-                    VisitView(patient: patient)
-                
+                    VisitView(patient: patient, startSignal: startRecordingSignal)
+
+                case .pastVisits:
+                    ScrollView {
+                        PastVisitsView(patient: patient).padding()
+                    }
+                    .background(Color(UIColor.systemGroupedBackground))
+
                 case .appointments:
                     PatientAppointmentsView(patient: patient)
                 }
