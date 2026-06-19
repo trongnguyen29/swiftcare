@@ -139,9 +139,20 @@ struct ScheduleAppointmentView: View {
                     
                     // Reason For Visit Field
                     FormField(label: "REASON FOR VISIT") {
-                        TextField("e.g. Follow-up, Annual Wellness, Lab Review...", text: $reason)
+                        Menu {
+                            ForEach(AppointmentType.allCases, id: \.self) { type in
+                                Button(type.rawValue) { reason = type.rawValue }
+                            }
+                        } label: {
+                            HStack {
+                                Text(reason.isEmpty ? "Select reason..." : reason)
+                                    .foregroundColor(reason.isEmpty ? Color(UIColor.placeholderText) : .primary)
+                                Spacer()
+                                Image(systemName: "chevron.down").foregroundColor(.secondary)
+                            }
                             .padding()
                             .background(RoundedRectangle(cornerRadius: 8).stroke(Color(UIColor.separator), lineWidth: 1))
+                        }
                     }
                 }
                 .padding()
