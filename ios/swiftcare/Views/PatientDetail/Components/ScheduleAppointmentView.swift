@@ -60,7 +60,13 @@ struct ScheduleAppointmentView: View {
                         }
 
                         FormField(label: "TIME") {
-                            timePicker
+                            DatePicker("Time", selection: $selectedTime, displayedComponents: .hourAndMinute)
+                                .labelsHidden()
+                                .datePickerStyle(.compact)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 10)
+                                .background(RoundedRectangle(cornerRadius: 8).stroke(Color(UIColor.separator), lineWidth: 1))
                         }
                     }
 
@@ -143,68 +149,6 @@ struct ScheduleAppointmentView: View {
         } message: {
             Text(saveError ?? "")
         }
-    }
-
-    // MARK: - Time picker
-
-    private var timePicker: some View {
-        HStack(spacing: 0) {
-            Picker("Hour", selection: Binding(
-                get: { Calendar.current.component(.hour, from: selectedTime) % 12 == 0 ? 12 : Calendar.current.component(.hour, from: selectedTime) % 12 },
-                set: { h in
-                    let isPM = Calendar.current.component(.hour, from: selectedTime) >= 12
-                    let hour24 = isPM ? (h == 12 ? 12 : h + 12) : (h == 12 ? 0 : h)
-                    let min = Calendar.current.component(.minute, from: selectedTime)
-                    selectedTime = Calendar.current.date(bySettingHour: hour24, minute: min, second: 0, of: selectedTime) ?? selectedTime
-                }
-            )) {
-                ForEach(1...12, id: \.self) { h in Text("\(h)").tag(h) }
-            }
-            .pickerStyle(.wheel)
-            .frame(width: 56)
-            .clipped()
-
-            Text(":")
-                .font(.headline)
-                .foregroundColor(.secondary)
-                .padding(.bottom, 2)
-
-            Picker("Minute", selection: Binding(
-                get: { Calendar.current.component(.minute, from: selectedTime) },
-                set: { min in
-                    let hour = Calendar.current.component(.hour, from: selectedTime)
-                    selectedTime = Calendar.current.date(bySettingHour: hour, minute: min, second: 0, of: selectedTime) ?? selectedTime
-                }
-            )) {
-                ForEach(Array(stride(from: 0, through: 55, by: 5)), id: \.self) { m in
-                    Text(String(format: "%02d", m)).tag(m)
-                }
-            }
-            .pickerStyle(.wheel)
-            .frame(width: 56)
-            .clipped()
-
-            Picker("AM/PM", selection: Binding(
-                get: { Calendar.current.component(.hour, from: selectedTime) < 12 ? 0 : 1 },
-                set: { period in
-                    let currentHour = Calendar.current.component(.hour, from: selectedTime)
-                    let isPM = period == 1
-                    let currentIsPM = currentHour >= 12
-                    guard isPM != currentIsPM else { return }
-                    let newHour = isPM ? currentHour + 12 : currentHour - 12
-                    let min = Calendar.current.component(.minute, from: selectedTime)
-                    selectedTime = Calendar.current.date(bySettingHour: newHour, minute: min, second: 0, of: selectedTime) ?? selectedTime
-                }
-            )) {
-                Text("AM").tag(0)
-                Text("PM").tag(1)
-            }
-            .pickerStyle(.wheel)
-            .frame(width: 56)
-            .clipped()
-        }
-        .frame(height: 100)
-        .background(RoundedRectangle(cornerRadius: 8).stroke(Color(UIColor.separator), lineWidth: 1))
     }
 
     // MARK: - Patient field
