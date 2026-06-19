@@ -10,27 +10,20 @@ struct AppointmentCardView: View {
     @ObservedObject private var contacts = PatientContactStore.shared
     @State private var sendingReminder = false
     @State private var reminderError: String?
-    
+
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
             if let onOpenPatient {
-                Button(action: onOpenPatient) {
-                    appointmentContent
-                }
-                .buttonStyle(.plain)
+                Button(action: onOpenPatient) { appointmentContent }.buttonStyle(.plain)
             } else {
                 appointmentContent
             }
-
             reminderControl
         }
         .padding()
         .background(Color(UIColor.systemBackground))
         .cornerRadius(16)
-        .overlay(
-            RoundedRectangle(cornerRadius: 16)
-                .stroke(Color(UIColor.separator), lineWidth: 0.5)
-        )
+        .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color(UIColor.separator), lineWidth: 0.5))
         .alert("Reminder Not Sent", isPresented: Binding(
             get: { reminderError != nil },
             set: { if !$0 { reminderError = nil } }
@@ -45,12 +38,9 @@ struct AppointmentCardView: View {
         HStack(alignment: .top, spacing: 16) {
             VStack {
                 Text(monthString(from: appointment.date))
-                    .font(.caption)
-                    .fontWeight(.semibold)
-                    .foregroundColor(.secondary)
+                    .font(.caption).fontWeight(.semibold).foregroundColor(.secondary)
                 Text(dayString(from: appointment.date))
-                    .font(.title2)
-                    .fontWeight(.bold)
+                    .font(.title2).fontWeight(.bold)
             }
             .frame(width: 56, height: 64)
             .background(Color(UIColor.secondarySystemBackground))
@@ -58,44 +48,33 @@ struct AppointmentCardView: View {
 
             VStack(alignment: .leading, spacing: 8) {
                 HStack(alignment: .center, spacing: 6) {
-                    Text(patientName)
-                        .font(.headline.weight(.bold))
+                    Text(patientName).font(.headline.weight(.bold))
                     StatusBadge(status: appointment.status)
                     if onOpenPatient != nil {
-                        Image(systemName: "chevron.right")
-                            .font(.caption2)
-                            .foregroundColor(.secondary)
+                        Image(systemName: "chevron.right").font(.caption2).foregroundColor(.secondary)
                     }
                 }
 
-                Text(appointment.reason)
-                    .font(.subheadline)
-                    .foregroundColor(.primary)
+                Text(appointment.reason).font(.subheadline).foregroundColor(.primary)
 
                 HStack(spacing: 16) {
                     VStack(alignment: .leading, spacing: 2) {
                         Text(timeString(from: appointment.date))
-                            .font(.title3.bold())
-                            .monospacedDigit()
+                            .font(.title3.bold()).monospacedDigit()
                         Text("\(appointment.durationMinutes) min")
-                            .font(.caption.weight(.semibold))
-                            .foregroundColor(.teal)
+                            .font(.caption.weight(.semibold)).foregroundColor(.teal)
                     }
                     .frame(minWidth: 78, alignment: .leading)
 
                     VStack(alignment: .leading, spacing: 5) {
-                        DetailItem(icon: appointment.type.icon, text: appointment.type.rawValue, color: typeColor(for: appointment.type))
+                        DetailItem(icon: appointment.type.icon, text: appointment.type.rawValue, color: appointment.type.color)
                         DetailItem(icon: "stethoscope", text: appointment.doctorName)
                     }
                 }
 
                 HStack {
-                    Image(systemName: "phone")
-                        .foregroundColor(.secondary)
-                        .font(.caption)
-                    Text(displayedPhoneNumber)
-                        .font(.caption)
-                        .foregroundColor(.secondary)
+                    Image(systemName: "phone").foregroundColor(.secondary).font(.caption)
+                    Text(displayedPhoneNumber).font(.caption).foregroundColor(.secondary)
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -108,14 +87,9 @@ struct AppointmentCardView: View {
         if appointment.isReminderSent {
             ActionButton(isReminderSent: true)
         } else if sendingReminder {
-            ProgressView()
-                .controlSize(.small)
-                .frame(width: 112, height: 30)
+            ProgressView().controlSize(.small).frame(width: 112, height: 30)
         } else if onSendReminder != nil {
-            Button(action: sendReminder) {
-                ActionButton(isReminderSent: false)
-            }
-            .buttonStyle(.plain)
+            Button(action: sendReminder) { ActionButton(isReminderSent: false) }.buttonStyle(.plain)
         } else {
             ActionButton(isReminderSent: false)
         }
@@ -126,73 +100,44 @@ struct AppointmentCardView: View {
         Task {
             sendingReminder = true
             defer { sendingReminder = false }
-            do {
-                try await onSendReminder()
-            } catch {
-                reminderError = error.localizedDescription
-            }
-        }
-    }
-    
-    // Formatters & Helpers
-    private func monthString(from date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "MMM"
-        return formatter.string(from: date).uppercased()
-    }
-    
-    private func dayString(from date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "d"
-        return formatter.string(from: date)
-    }
-    
-    private func timeString(from date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.timeStyle = .short
-        return formatter.string(from: date)
-    }
-    
-    private func typeColor(for type: AppointmentType) -> Color {
-        switch type {
-        case .inPerson: return .primary
-        case .telehealth: return .teal
-        case .phone: return .purple
-        case .newPatient: return .blue
-        case .followUp: return .teal
-        case .physicalExam: return .indigo
+            do { try await onSendReminder() }
+            catch { reminderError = error.localizedDescription }
         }
     }
 
+    private func monthString(from date: Date) -> String {
+        let f = DateFormatter(); f.dateFormat = "MMM"; return f.string(from: date).uppercased()
+    }
+    private func dayString(from date: Date) -> String {
+        let f = DateFormatter(); f.dateFormat = "d"; return f.string(from: date)
+    }
+    private func timeString(from date: Date) -> String {
+        let f = DateFormatter(); f.timeStyle = .short; return f.string(from: date)
+    }
     private var displayedPhoneNumber: String {
         contacts.phone(forPtnum: patientMRN, fallback: appointment.phoneNumber) ?? "No phone on file"
     }
 }
 
-// Subcomponents
+// MARK: - Subcomponents
+
 struct StatusBadge: View {
     let status: AppointmentStatus
-    
+
     var body: some View {
         HStack(spacing: 4) {
-            Circle()
-                .fill(statusColor)
-                .frame(width: 6, height: 6)
-            Text(status.rawValue)
-                .font(.caption2)
-                .fontWeight(.medium)
+            Circle().fill(statusColor).frame(width: 6, height: 6)
+            Text(status.rawValue).font(.caption2).fontWeight(.medium)
         }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 4)
-        .background(statusColor.opacity(0.1))
-        .cornerRadius(8)
+        .padding(.horizontal, 8).padding(.vertical, 4)
+        .background(statusColor.opacity(0.1)).cornerRadius(8)
     }
-    
+
     var statusColor: Color {
         switch status {
         case .confirmed: return .teal
         case .scheduled: return .orange
-        case .canceled: return .red
+        case .canceled:  return .red
         case .completed: return .green
         }
     }
@@ -200,28 +145,21 @@ struct StatusBadge: View {
 
 struct ActionButton: View {
     let isReminderSent: Bool
-    
+
     var body: some View {
         HStack {
             if isReminderSent {
-                Image(systemName: "checkmark.circle")
-                Text("Reminder Sent")
+                Image(systemName: "checkmark.circle"); Text("Reminder Sent")
             } else {
-                Image(systemName: "bell.fill")
-                Text("Send Reminder")
+                Image(systemName: "bell.fill"); Text("Send Reminder")
             }
         }
-        .font(.caption)
-        .fontWeight(.semibold)
-        .padding(.horizontal, 12)
-        .padding(.vertical, 6)
+        .font(.caption).fontWeight(.semibold)
+        .padding(.horizontal, 12).padding(.vertical, 6)
         .foregroundColor(isReminderSent ? .teal : .white)
-        .background(isReminderSent ? Color.clear : Color.init(red: 0.1, green: 0.2, blue: 0.4)) // Dark navy blue from Figma
+        .background(isReminderSent ? Color.clear : Color(red: 0.1, green: 0.2, blue: 0.4))
         .cornerRadius(8)
-        .overlay(
-            RoundedRectangle(cornerRadius: 8)
-                .stroke(isReminderSent ? Color.teal.opacity(0.3) : Color.clear, lineWidth: 1)
-        )
+        .overlay(RoundedRectangle(cornerRadius: 8).stroke(isReminderSent ? Color.teal.opacity(0.3) : Color.clear, lineWidth: 1))
     }
 }
 
@@ -229,14 +167,12 @@ struct DetailItem: View {
     let icon: String
     let text: String
     var color: Color = .secondary
-    
+
     var body: some View {
         HStack(spacing: 4) {
-            Image(systemName: icon)
-            Text(text)
+            Image(systemName: icon); Text(text)
         }
-        .font(.caption)
-        .foregroundColor(color)
+        .font(.caption).foregroundColor(color)
     }
 }
 

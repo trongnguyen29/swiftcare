@@ -118,11 +118,7 @@ struct ScheduleAppointmentView: View {
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     Button("Cancel") {
-                        if isDirty {
-                            showDismissConfirm = true
-                        } else {
-                            dismiss()
-                        }
+                        if isDirty { showDismissConfirm = true } else { dismiss() }
                     }
                 }
                 ToolbarItem(placement: .topBarTrailing) {

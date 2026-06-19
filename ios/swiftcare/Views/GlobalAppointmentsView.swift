@@ -7,6 +7,7 @@ struct GlobalAppointmentsView: View {
     @State private var selectedDate = Date()
     @State private var showingScheduleSheet = false
     @State private var showingReminderLog = false
+    @State private var typeFilter: AppointmentType? = nil
 
     private var dayAppointments: [Appointment] {
         appointmentStore.appointments
@@ -14,12 +15,12 @@ struct GlobalAppointmentsView: View {
             .sorted { $0.date < $1.date }
     }
 
-    private var upcomingAppointments: [Appointment] {
-        dayAppointments.filter { $0.date >= Date() }
-    }
+    private var upcomingAppointments: [Appointment] { dayAppointments.filter { $0.date >= Date() } }
+    private var seenAppointments: [Appointment]     { dayAppointments.filter { $0.date <  Date() } }
 
-    private var seenAppointments: [Appointment] {
-        dayAppointments.filter { $0.date < Date() }
+    private func filtered(_ list: [Appointment]) -> [Appointment] {
+        guard let filter = typeFilter else { return list }
+        return list.filter { $0.type == filter }
     }
 
     init(onOpenPatient: @escaping (Patient) -> Void = { _ in }) {
@@ -34,7 +35,6 @@ struct GlobalAppointmentsView: View {
                         calendarRail
                         agenda
                     }
-
                     VStack(alignment: .leading, spacing: 20) {
                         calendarRail
                         agenda
@@ -77,19 +77,32 @@ struct GlobalAppointmentsView: View {
                         .font(.subheadline)
                         .foregroundColor(.secondary)
                 }
-
                 Spacer()
-
                 Button { showingReminderLog = true } label: {
                     Label("Reminder Log", systemImage: "bell.badge")
                 }
                 .buttonStyle(.bordered)
-
                 Button { showingScheduleSheet = true } label: {
                     Image(systemName: "plus")
                 }
                 .buttonStyle(.borderedProminent)
                 .accessibilityLabel("Schedule appointment")
+            }
+
+            // Type filter pills
+            if !dayAppointments.isEmpty {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        FilterPill(label: "All", isSelected: typeFilter == nil) { typeFilter = nil }
+                        ForEach(AppointmentType.allCases, id: \.self) { type in
+                            if dayAppointments.contains(where: { $0.type == type }) {
+                                FilterPill(label: type.rawValue, isSelected: typeFilter == type, color: type.color) {
+                                    typeFilter = typeFilter == type ? nil : type
+                                }
+                            }
+                        }
+                    }
+                }
             }
 
             if dayAppointments.isEmpty {
@@ -100,11 +113,13 @@ struct GlobalAppointmentsView: View {
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 40)
             } else {
-                if !upcomingAppointments.isEmpty {
-                    appointmentSection("Upcoming", appointments: upcomingAppointments, isSeen: false)
-                }
-                if !seenAppointments.isEmpty {
-                    appointmentSection("Seen", appointments: seenAppointments, isSeen: true)
+                let upcoming = filtered(upcomingAppointments)
+                let seen     = filtered(seenAppointments)
+                if !upcoming.isEmpty { appointmentSection("Upcoming", appointments: upcoming, isSeen: false) }
+                if !seen.isEmpty     { appointmentSection("Seen",     appointments: seen,     isSeen: true)  }
+                if upcoming.isEmpty && seen.isEmpty {
+                    Text("No appointments match the selected filter.")
+                        .font(.subheadline).foregroundColor(.secondary)
                 }
             }
         }
@@ -117,17 +132,14 @@ struct GlobalAppointmentsView: View {
             Text(title.uppercased())
                 .font(.caption.weight(.bold))
                 .foregroundColor(.secondary)
-
             ForEach(appointments) { appointment in
                 let patient = appointmentStore.patient(for: appointment)
                 AppointmentCardView(
                     appointment: appointment,
                     patientName: patient?.displayName ?? "Unknown Patient",
-                    patientMRN: patient?.mrn ?? "MRN-000000",
+                    patientMRN: patient?.mrn ?? "",
                     onOpenPatient: {
-                        if let patient {
-                            onOpenPatient(patient.profilePatient)
-                        }
+                        if let patient { onOpenPatient(patient.profilePatient) }
                     },
                     onSendReminder: {
                         try await appointmentStore.sendReminder(for: appointment)
@@ -138,6 +150,31 @@ struct GlobalAppointmentsView: View {
         }
     }
 }
+
+// MARK: - Filter Pill
+
+struct FilterPill: View {
+    let label: String
+    let isSelected: Bool
+    var color: Color = Color(red: 0.1, green: 0.2, blue: 0.4)
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Text(label)
+                .font(.subheadline)
+                .fontWeight(isSelected ? .semibold : .regular)
+                .foregroundColor(isSelected ? .white : color)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 7)
+                .background(isSelected ? color : color.opacity(0.08))
+                .cornerRadius(20)
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+// MARK: - Reminder Log
 
 struct ReminderLogView: View {
     @ObservedObject private var appointmentStore = AppointmentStore.shared
@@ -154,14 +191,10 @@ struct ReminderLogView: View {
                 } else {
                     List(appointmentStore.reminderLog) { entry in
                         VStack(alignment: .leading, spacing: 4) {
-                            Text(entry.patientName)
-                                .font(.headline)
-                            Text(entry.phoneNumber)
-                                .font(.subheadline)
-                                .foregroundColor(.secondary)
+                            Text(entry.patientName).font(.headline)
+                            Text(entry.phoneNumber).font(.subheadline).foregroundColor(.secondary)
                             Text(entry.sentAt.formatted(.dateTime.month().day().hour().minute()))
-                                .font(.caption)
-                                .foregroundColor(.secondary)
+                                .font(.caption).foregroundColor(.secondary)
                         }
                         .padding(.vertical, 3)
                     }

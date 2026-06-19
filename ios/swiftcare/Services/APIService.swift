@@ -5,13 +5,12 @@ class APIService {
 
     private let supabaseUrl = "https://ujqrxhhshxgqqjkblorh.supabase.co"
     private let supabaseKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVqcXJ4aGhzaHhncXFqa2Jsb3JoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk4MDU3NjAsImV4cCI6MjA5NTM4MTc2MH0.t4CgUYE5oPLhocC2YtRF-WW6tMWu2Cvd0mYB_A1jWhk"
-    let workerUrl = "https://swiftcare.tnn-040.workers.dev"
+    private let workerUrl = "https://swiftcare.tnn-040.workers.dev"
 
-    private let patientTable = "patient_summary"
-    private let summaryTable = "patient_ai_summary"
+    private let patientTable      = "patient_summary"
+    private let summaryTable      = "patient_ai_summary"
     private let appointmentsTable = "appointments"
-    // `patient_summary` is a read-only view and does not expose contact fields.
-    // PatientContactStore owns locally edited phone numbers until a contact API exists.
+
     private let cols = "ptnum,label,scc,first_name,last_name,age,administrative_sex,race,ethnicity,state,systolic_bp,diastolic_bp,heart_rate,bmi,total_cholesterol,ldl,hdl,triglycerides,hba1c,glucose,creatinine,egfr,hemoglobin,wbc,platelets,problems"
 
     private static let maxRetries = 5
@@ -122,7 +121,20 @@ class APIService {
             URLQueryItem(name: "select", value: "*"),
             URLQueryItem(name: "order", value: "appointment_date.asc"),
         ]
+        let (data, response) = try await URLSession.shared.data(for: appointmentRequest(urlComponents))
+        guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
+            throw appointmentError(data: data, response: response, action: "load appointments")
+        }
+        return try appointmentDecoder().decode([Appointment].self, from: data)
+    }
 
+    func getAppointments(ptnum: String) async throws -> [Appointment] {
+        var urlComponents = URLComponents(string: "\(supabaseUrl)/rest/v1/\(appointmentsTable)")!
+        urlComponents.queryItems = [
+            URLQueryItem(name: "select", value: "*"),
+            URLQueryItem(name: "ptnum", value: "eq.\(ptnum)"),
+            URLQueryItem(name: "order", value: "appointment_date.asc"),
+        ]
         let (data, response) = try await URLSession.shared.data(for: appointmentRequest(urlComponents))
         guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
             throw appointmentError(data: data, response: response, action: "load appointments")
@@ -144,20 +156,29 @@ class APIService {
         guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
             throw appointmentError(data: data, response: response, action: "save the appointment")
         }
-
         let appointments = try appointmentDecoder().decode([Appointment].self, from: data)
         guard let created = appointments.first else { throw URLError(.cannotParseResponse) }
         return created
     }
 
+    func updateAppointmentStatus(id: String, status: AppointmentStatus) async throws {
+        var urlComponents = URLComponents(string: "\(supabaseUrl)/rest/v1/\(appointmentsTable)")!
+        urlComponents.queryItems = [URLQueryItem(name: "id", value: "eq.\(id)")]
+        var request = appointmentRequest(urlComponents, method: "PATCH")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONSerialization.data(withJSONObject: ["status": status.rawValue])
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
+            throw appointmentError(data: data, response: response, action: "update appointment status")
+        }
+    }
+
     func markReminderSent(forAppointmentID id: String) async throws {
         var urlComponents = URLComponents(string: "\(supabaseUrl)/rest/v1/\(appointmentsTable)")!
         urlComponents.queryItems = [URLQueryItem(name: "id", value: "eq.\(id)")]
-
         var request = appointmentRequest(urlComponents, method: "PATCH")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.httpBody = try JSONSerialization.data(withJSONObject: ["is_reminder_sent": true])
-
         let (data, response) = try await URLSession.shared.data(for: request)
         guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
             throw appointmentError(data: data, response: response, action: "update the reminder")
@@ -178,19 +199,13 @@ class APIService {
         decoder.dateDecodingStrategy = .custom { decoder in
             let container = try decoder.singleValueContainer()
             let dateString = try container.decode(String.self)
-
-            let fractionalFormatter = ISO8601DateFormatter()
-            fractionalFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-            if let date = fractionalFormatter.date(from: dateString) { return date }
-
-            let formatter = ISO8601DateFormatter()
-            formatter.formatOptions = [.withInternetDateTime]
-            if let date = formatter.date(from: dateString) { return date }
-
-            throw DecodingError.dataCorruptedError(
-                in: container,
-                debugDescription: "Invalid appointment date: \(dateString)"
-            )
+            let withFractional = ISO8601DateFormatter()
+            withFractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+            if let date = withFractional.date(from: dateString) { return date }
+            let basic = ISO8601DateFormatter()
+            basic.formatOptions = [.withInternetDateTime]
+            if let date = basic.date(from: dateString) { return date }
+            throw DecodingError.dataCorruptedError(in: container, debugDescription: "Invalid date: \(dateString)")
         }
         return decoder
     }
@@ -200,11 +215,7 @@ class APIService {
         let payload = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
         let detail = (payload?["message"] as? String) ?? (payload?["error"] as? String)
         let message = detail ?? "Could not \(action) (HTTP \(statusCode))."
-        return NSError(
-            domain: "Appointments",
-            code: statusCode,
-            userInfo: [NSLocalizedDescriptionKey: message]
-        )
+        return NSError(domain: "Appointments", code: statusCode, userInfo: [NSLocalizedDescriptionKey: message])
     }
 
     // MARK: - Cloudflare Worker / Chat
@@ -273,20 +284,15 @@ class APIService {
             let message = payload?.error ?? reminderServiceError(for: statusCode)
             throw NSError(domain: "AppointmentReminder", code: statusCode, userInfo: [NSLocalizedDescriptionKey: message])
         }
-
         return payload?.messageSid
     }
 
     private func reminderServiceError(for statusCode: Int) -> String {
         switch statusCode {
-        case 404:
-            return "The reminders service has not been deployed yet."
-        case 401, 403:
-            return "The reminders service is not authorized to send messages."
-        case 500 ... 599:
-            return "The reminders service is unavailable right now."
-        default:
-            return "The reminder could not be sent."
+        case 404:         return "The reminders service has not been deployed yet."
+        case 401, 403:    return "The reminders service is not authorized to send messages."
+        case 500...599:   return "The reminders service is unavailable right now."
+        default:          return "The reminder could not be sent."
         }
     }
 
@@ -299,7 +305,6 @@ class APIService {
         let language: String
     }
 
-    /// Single-request transcription with up to maxRetries attempts (exponential backoff).
     func transcribeAudio(
         audioB64: String,
         mimeType: String,
@@ -338,7 +343,6 @@ class APIService {
         throw lastError
     }
 
-    /// Chunk a long recording and transcribe in parallel, merging with overlap dedup.
     func transcribeChunked(
         wavData: Data,
         durationSeconds: Double,
@@ -346,7 +350,6 @@ class APIService {
         language: String = "en"
     ) async throws -> String {
         guard let chunks = AudioChunker.chunk(wavData: wavData, durationSeconds: durationSeconds) else {
-            // Short enough for a single request
             return try await transcribeAudio(
                 audioB64: wavData.base64EncodedString(),
                 mimeType: "audio/wav",
@@ -355,7 +358,6 @@ class APIService {
             )
         }
 
-        // Transcribe all chunks in parallel (capped at 4 concurrent)
         var results = [String](repeating: "", count: chunks.count)
         try await withThrowingTaskGroup(of: (Int, String).self) { group in
             var inFlight = 0
@@ -378,9 +380,7 @@ class APIService {
                 }
             }
 
-            // Seed up to 4 concurrent tasks
             while inFlight < 4 && nextChunk < chunks.count { launchNext() }
-
             for try await (idx, text) in group {
                 results[idx] = text
                 inFlight -= 1
@@ -410,10 +410,9 @@ class APIService {
         return ""
     }
 
-    // Returns a short status string on success ("Posted to EHR" or "Posted — ID: <id>")
     func pushNoteToEHR(
-        noteText:    String,
-        patientId:   String,
+        noteText: String,
+        patientId: String,
         patientName: String? = nil,
         templateName: String? = nil
     ) async throws -> String {
