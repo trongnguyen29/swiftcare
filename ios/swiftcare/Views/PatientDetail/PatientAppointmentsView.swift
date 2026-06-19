@@ -2,15 +2,10 @@ import SwiftUI
 
 struct PatientAppointmentsView: View {
     let patient: Patient
-    @State private var selectedDate: Date = Calendar.current.date(from: DateComponents(year: 2026, month: 6, day: 18)) ?? Date()
+    @State private var selectedDate: Date = Date()
     @State private var showingScheduleSheet = false
-    
-    // Using mock data for demonstration
-    var appointments: [Appointment] {
-        // Filter mocks for this patient (assuming patient-0 is Sarah Chen for mock purposes)
-        // In reality, this would filter by `patient.id`. Let's just return all mocks for visual completeness.
-        Appointment.mocks
-    }
+    @State private var appointments: [Appointment] = []
+    @State private var isLoading = false
     
     var body: some View {
         ScrollView {
@@ -118,7 +113,7 @@ struct PatientAppointmentsView: View {
                             AppointmentCardView(
                                 appointment: appt,
                                 patientName: patient.displayName,
-                                patientMRN: "MRN-847261"
+                                patientMRN: patient.ptnum
                             )
                         }
                     }
@@ -128,9 +123,18 @@ struct PatientAppointmentsView: View {
             .padding()
         }
         .background(Color(UIColor.systemGroupedBackground))
-        .sheet(isPresented: $showingScheduleSheet) {
+        .task(id: patient.ptnum) { await loadAppointments() }
+        .sheet(isPresented: $showingScheduleSheet, onDismiss: { Task { await loadAppointments() } }) {
             ScheduleAppointmentView(patient: patient)
         }
+    }
+
+    private func loadAppointments() async {
+        isLoading = true
+        defer { isLoading = false }
+        appointments = (try? await APIService.shared.getAppointments(ptnum: patient.ptnum)) ?? []
+        try? await Task.sleep(nanoseconds: 15_000_000_000)
+        if !Task.isCancelled { await loadAppointments() }
     }
     
     private func dateString(from date: Date) -> String {

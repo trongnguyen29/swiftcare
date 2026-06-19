@@ -1,13 +1,10 @@
 import SwiftUI
 
 struct GlobalAppointmentsView: View {
-    @State private var selectedDate: Date = Calendar.current.date(from: DateComponents(year: 2026, month: 6, day: 18)) ?? Date()
+    @State private var selectedDate: Date = Date()
     @State private var showingScheduleSheet = false
-    
-    // Global mock data
-    var appointments: [Appointment] {
-        Appointment.mocks
-    }
+    @State private var appointments: [Appointment] = []
+    @State private var isLoading = false
     
     var body: some View {
         NavigationStack {
@@ -47,7 +44,7 @@ struct GlobalAppointmentsView: View {
                                 ForEach(dayAppointments) { appt in
                                     MiniAppointmentCard(
                                         appointment: appt,
-                                        patientName: mockName(for: appt.patientId)
+                                        patientName: appt.patientName
                                     )
                                 }
                             }
@@ -117,8 +114,8 @@ struct GlobalAppointmentsView: View {
                             ForEach(appointments.sorted(by: { $0.date < $1.date })) { appt in
                                 AppointmentCardView(
                                     appointment: appt,
-                                    patientName: mockName(for: appt.patientId),
-                                    patientMRN: mockMRN(for: appt.patientId)
+                                    patientName: appt.patientName,
+                                    patientMRN: appt.patientId
                                 )
                             }
                         }
@@ -129,36 +126,26 @@ struct GlobalAppointmentsView: View {
             }
             .background(Color(UIColor.systemGroupedBackground))
             .navigationTitle("Appointments")
-            .sheet(isPresented: $showingScheduleSheet) {
-                // For a global view, we create a dummy patient just to fulfill the ScheduleAppointmentView parameter,
-                // or we could refactor ScheduleAppointmentView to take an optional patient.
+            .task { await loadAppointments() }
+            .sheet(isPresented: $showingScheduleSheet, onDismiss: { Task { await loadAppointments() } }) {
                 ScheduleAppointmentView(patient: Patient.mock)
             }
         }
     }
-    
+
+    private func loadAppointments() async {
+        isLoading = true
+        defer { isLoading = false }
+        appointments = (try? await APIService.shared.getAllAppointments()) ?? []
+        // Poll every 15 seconds so the view stays live
+        try? await Task.sleep(nanoseconds: 15_000_000_000)
+        if !Task.isCancelled { await loadAppointments() }
+    }
+
     private func dateString(from date: Date) -> String {
         let formatter = DateFormatter()
         formatter.dateFormat = "MMMM d, yyyy"
         return formatter.string(from: date).uppercased()
-    }
-    
-    private func mockName(for id: String) -> String {
-        switch id {
-        case "patient-0": return "Sarah Chen"
-        case "patient-1": return "Michael Rodriguez"
-        case "patient-2": return "Emily Johnson"
-        default: return "Unknown Patient"
-        }
-    }
-    
-    private func mockMRN(for id: String) -> String {
-        switch id {
-        case "patient-0": return "MRN-847261"
-        case "patient-1": return "MRN-592847"
-        case "patient-2": return "MRN-318529"
-        default: return "MRN-000000"
-        }
     }
 }
 
