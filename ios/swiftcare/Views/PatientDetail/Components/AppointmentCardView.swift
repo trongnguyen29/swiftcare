@@ -49,7 +49,7 @@ struct AppointmentCardView: View {
                 HStack(spacing: 16) {
                     DetailItem(icon: "clock", text: "\(timeString(from: appointment.date)) • \(appointment.durationMinutes) min")
                     
-                    DetailItem(icon: appointment.type.icon, text: appointment.type.rawValue, color: typeColor(for: appointment.type))
+                    DetailItem(icon: appointment.type.icon, text: appointment.type.rawValue, color: appointment.type.color)
                     
                     DetailItem(icon: "stethoscope", text: appointment.doctorName)
                 }
@@ -93,13 +93,6 @@ struct AppointmentCardView: View {
         return formatter.string(from: date)
     }
     
-    private func typeColor(for type: AppointmentType) -> Color {
-        switch type {
-        case .inPerson: return .primary
-        case .telehealth: return .teal
-        case .phone: return .purple
-        }
-    }
 }
 
 // Subcomponents

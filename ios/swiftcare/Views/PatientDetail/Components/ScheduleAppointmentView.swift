@@ -7,10 +7,12 @@ struct ScheduleAppointmentView: View {
     // Form State
     @State private var selectedDate = Date()
     @State private var selectedTime = "9:00 AM"
-    @State private var visitType: AppointmentType = .inPerson
+    @State private var visitType: AppointmentType = .newPatient
     @State private var duration = "30 min"
     @State private var provider = "Dr. Marcus Webb"
     @State private var reason = ""
+    @State private var isSaving = false
+    @State private var saveError: String?
     
     // Mock Options
     let times = ["8:00 AM", "8:30 AM", "9:00 AM", "9:30 AM", "10:00 AM", "10:30 AM", "11:00 AM", "11:30 AM", "1:00 PM", "1:30 PM", "2:00 PM", "2:30 PM", "3:00 PM", "3:30 PM", "4:00 PM"]
@@ -87,9 +89,9 @@ struct ScheduleAppointmentView: View {
                     HStack(spacing: 16) {
                         FormField(label: "VISIT TYPE") {
                             Menu {
-                                Button("In-Person") { visitType = .inPerson }
-                                Button("Telehealth") { visitType = .telehealth }
-                                Button("Phone") { visitType = .phone }
+                                ForEach(AppointmentType.allCases, id: \.self) { type in
+                                    Button(type.rawValue) { visitType = type }
+                                }
                             } label: {
                                 HStack {
                                     Text(visitType.rawValue).foregroundColor(.primary)
@@ -137,7 +139,7 @@ struct ScheduleAppointmentView: View {
                     
                     // Reason For Visit Field
                     FormField(label: "REASON FOR VISIT") {
-                        TextField("e.g. Follow-up, Annual Wellness, Lab Review...", text: $reason)
+                        TextField("e.g. Follow-up on HbA1c results, Annual wellness exam...", text: $reason)
                             .padding()
                             .background(RoundedRectangle(cornerRadius: 8).stroke(Color(UIColor.separator), lineWidth: 1))
                     }
@@ -159,22 +161,72 @@ struct ScheduleAppointmentView: View {
                 }
                 
                 Button(action: {
-                    // Action to schedule appointment goes here
-                    dismiss()
+                    Task { await scheduleAppointment() }
                 }) {
-                    Text("Schedule Appointment")
-                        .fontWeight(.semibold)
-                        .foregroundColor(.white)
-                        .padding(.horizontal, 24)
-                        .padding(.vertical, 12)
-                        .background(Color(red: 0.6, green: 0.65, blue: 0.75)) // Disabled-looking blue from screenshot
-                        .cornerRadius(8)
+                    Group {
+                        if isSaving {
+                            ProgressView()
+                                .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                        } else {
+                            Text("Schedule Appointment")
+                                .fontWeight(.semibold)
+                        }
+                    }
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 24)
+                    .padding(.vertical, 12)
+                    .background(Color(red: 0.1, green: 0.2, blue: 0.4))
+                    .cornerRadius(8)
                 }
+                .disabled(isSaving)
             }
             .padding()
             .background(Color(UIColor.systemBackground))
         }
         .frame(width: 500, height: 600)
+        .alert("Error", isPresented: Binding(get: { saveError != nil }, set: { if !$0 { saveError = nil } })) {
+            Button("OK") { saveError = nil }
+        } message: {
+            Text(saveError ?? "")
+        }
+    }
+
+    private func scheduleAppointment() async {
+        isSaving = true
+        defer { isSaving = false }
+        let iso = ISO8601DateFormatter()
+        iso.formatOptions = [.withInternetDateTime]
+        let appt = APIService.NewAppointment(
+            ptnum: patient.ptnum,
+            patient_name: patient.displayName,
+            appointment_date: iso.string(from: combineDateAndTime()),
+            duration_minutes: parseDuration(),
+            appointment_type: visitType.rawValue,
+            status: AppointmentStatus.scheduled.rawValue,
+            reason: reason,
+            doctor_name: provider,
+            phone_number: patient.phone ?? "",
+            is_reminder_sent: false
+        )
+        do {
+            _ = try await APIService.shared.createAppointment(appt)
+            dismiss()
+        } catch {
+            saveError = "Failed to schedule appointment. Please try again."
+        }
+    }
+
+    private func combineDateAndTime() -> Date {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "h:mm a"
+        guard let timeDate = formatter.date(from: selectedTime) else { return selectedDate }
+        let cal = Calendar.current
+        let t = cal.dateComponents([.hour, .minute], from: timeDate)
+        return cal.date(bySettingHour: t.hour ?? 9, minute: t.minute ?? 0, second: 0, of: selectedDate) ?? selectedDate
+    }
+
+    private func parseDuration() -> Int {
+        Int(duration.components(separatedBy: " ").first ?? "30") ?? 30
     }
 }
 

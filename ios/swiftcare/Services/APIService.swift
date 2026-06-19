@@ -7,8 +7,9 @@ class APIService {
     private let supabaseKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVqcXJ4aGhzaHhncXFqa2Jsb3JoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk4MDU3NjAsImV4cCI6MjA5NTM4MTc2MH0.t4CgUYE5oPLhocC2YtRF-WW6tMWu2Cvd0mYB_A1jWhk"
     private let workerUrl = "https://swiftcare.tnn-040.workers.dev"
     
-    private let patientTable = "patient_summary"
-    private let summaryTable = "patient_ai_summary"
+    private let patientTable       = "patient_summary"
+    private let summaryTable       = "patient_ai_summary"
+    private let appointmentsTable  = "appointments"
     private let cols = "ptnum,label,scc,first_name,last_name,age,administrative_sex,race,ethnicity,state,systolic_bp,diastolic_bp,heart_rate,bmi,total_cholesterol,ldl,hdl,triglycerides,hba1c,glucose,creatinine,egfr,hemoglobin,wbc,platelets,problems"
     
     // MARK: - Supabase
@@ -101,6 +102,106 @@ class APIService {
         }
     }
     
+    // MARK: - Appointments
+
+    private func makeAppointmentDecoder() -> JSONDecoder {
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .custom { decoder in
+            let container = try decoder.singleValueContainer()
+            let str = try container.decode(String.self)
+            let withFractional = ISO8601DateFormatter()
+            withFractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+            if let date = withFractional.date(from: str) { return date }
+            let basic = ISO8601DateFormatter()
+            basic.formatOptions = [.withInternetDateTime]
+            if let date = basic.date(from: str) { return date }
+            throw DecodingError.dataCorruptedError(in: container, debugDescription: "Cannot decode date: \(str)")
+        }
+        return decoder
+    }
+
+    private func appointmentRequest(_ urlComponents: URLComponents, method: String = "GET") -> URLRequest {
+        var request = URLRequest(url: urlComponents.url!)
+        request.httpMethod = method
+        request.setValue(supabaseKey, forHTTPHeaderField: "apikey")
+        request.setValue("Bearer \(supabaseKey)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        return request
+    }
+
+    func getAppointments(ptnum: String) async throws -> [Appointment] {
+        var urlComponents = URLComponents(string: "\(supabaseUrl)/rest/v1/\(appointmentsTable)")!
+        urlComponents.queryItems = [
+            URLQueryItem(name: "select", value: "*"),
+            URLQueryItem(name: "ptnum", value: "eq.\(ptnum)"),
+            URLQueryItem(name: "order", value: "appointment_date.asc")
+        ]
+        let (data, response) = try await URLSession.shared.data(for: appointmentRequest(urlComponents))
+        guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
+            throw URLError(.badServerResponse)
+        }
+        return try makeAppointmentDecoder().decode([Appointment].self, from: data)
+    }
+
+    func getAllAppointments() async throws -> [Appointment] {
+        var urlComponents = URLComponents(string: "\(supabaseUrl)/rest/v1/\(appointmentsTable)")!
+        urlComponents.queryItems = [
+            URLQueryItem(name: "select", value: "*"),
+            URLQueryItem(name: "order", value: "appointment_date.asc")
+        ]
+        let (data, response) = try await URLSession.shared.data(for: appointmentRequest(urlComponents))
+        guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
+            throw URLError(.badServerResponse)
+        }
+        return try makeAppointmentDecoder().decode([Appointment].self, from: data)
+    }
+
+    struct NewAppointment: Encodable {
+        let ptnum: String
+        let patient_name: String
+        let appointment_date: String
+        let duration_minutes: Int
+        let appointment_type: String
+        let status: String
+        let reason: String
+        let doctor_name: String
+        let phone_number: String
+        let is_reminder_sent: Bool
+    }
+
+    func createAppointment(_ appt: NewAppointment) async throws -> Appointment {
+        let url = URL(string: "\(supabaseUrl)/rest/v1/\(appointmentsTable)")!
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue(supabaseKey, forHTTPHeaderField: "apikey")
+        request.setValue("Bearer \(supabaseKey)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("return=representation", forHTTPHeaderField: "Prefer")
+        request.httpBody = try JSONEncoder().encode(appt)
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
+            throw URLError(.badServerResponse)
+        }
+        let created = try makeAppointmentDecoder().decode([Appointment].self, from: data)
+        guard let first = created.first else { throw URLError(.cannotParseResponse) }
+        return first
+    }
+
+    func updateAppointmentStatus(id: String, status: AppointmentStatus) async throws {
+        var urlComponents = URLComponents(string: "\(supabaseUrl)/rest/v1/\(appointmentsTable)")!
+        urlComponents.queryItems = [URLQueryItem(name: "id", value: "eq.\(id)")]
+        var request = URLRequest(url: urlComponents.url!)
+        request.httpMethod = "PATCH"
+        request.setValue(supabaseKey, forHTTPHeaderField: "apikey")
+        request.setValue("Bearer \(supabaseKey)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONSerialization.data(withJSONObject: ["status": status.rawValue])
+        let (_, response) = try await URLSession.shared.data(for: request)
+        guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
+            throw URLError(.badServerResponse)
+        }
+    }
+
     // MARK: - Cloudflare Workers
     
     struct ChatRequest: Codable {

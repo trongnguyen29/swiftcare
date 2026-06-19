@@ -1,12 +1,15 @@
 import SwiftUI
 
 struct GlobalAppointmentsView: View {
-    @State private var selectedDate: Date = Calendar.current.date(from: DateComponents(year: 2026, month: 6, day: 18)) ?? Date()
+    @State private var selectedDate: Date = Date()
     @State private var showingScheduleSheet = false
-    
-    // Global mock data
-    var appointments: [Appointment] {
-        Appointment.mocks
+    @State private var appointments: [Appointment] = []
+    @State private var isLoading = false
+    @State private var typeFilter: AppointmentType? = nil
+
+    var filteredAppointments: [Appointment] {
+        guard let filter = typeFilter else { return appointments }
+        return appointments.filter { $0.type == filter }
     }
     
     var body: some View {
@@ -47,7 +50,7 @@ struct GlobalAppointmentsView: View {
                                 ForEach(dayAppointments) { appt in
                                     MiniAppointmentCard(
                                         appointment: appt,
-                                        patientName: mockName(for: appt.patientId)
+                                        patientName: appt.patientName
                                     )
                                 }
                             }
@@ -62,7 +65,7 @@ struct GlobalAppointmentsView: View {
                                 Text("Upcoming Appointments")
                                     .font(.title2)
                                     .fontWeight(.bold)
-                                Text("\(appointments.count) scheduled across all patients")
+                                Text("\(filteredAppointments.count) scheduled across all patients")
                                     .font(.subheadline)
                                     .foregroundColor(.secondary)
                             }
@@ -111,14 +114,26 @@ struct GlobalAppointmentsView: View {
                             }
                         }
                         .padding(.bottom, 8)
-                        
+
+                        // Filter pills
+                        HStack(spacing: 8) {
+                            FilterPill(label: "All", isSelected: typeFilter == nil) {
+                                typeFilter = nil
+                            }
+                            ForEach(AppointmentType.allCases, id: \.self) { type in
+                                FilterPill(label: type.rawValue, isSelected: typeFilter == type, color: type.color) {
+                                    typeFilter = typeFilter == type ? nil : type
+                                }
+                            }
+                        }
+
                         // Cards
                         VStack(spacing: 16) {
-                            ForEach(appointments.sorted(by: { $0.date < $1.date })) { appt in
+                            ForEach(filteredAppointments.sorted(by: { $0.date < $1.date })) { appt in
                                 AppointmentCardView(
                                     appointment: appt,
-                                    patientName: mockName(for: appt.patientId),
-                                    patientMRN: mockMRN(for: appt.patientId)
+                                    patientName: appt.patientName,
+                                    patientMRN: appt.patientId
                                 )
                             }
                         }
@@ -129,36 +144,47 @@ struct GlobalAppointmentsView: View {
             }
             .background(Color(UIColor.systemGroupedBackground))
             .navigationTitle("Appointments")
-            .sheet(isPresented: $showingScheduleSheet) {
-                // For a global view, we create a dummy patient just to fulfill the ScheduleAppointmentView parameter,
-                // or we could refactor ScheduleAppointmentView to take an optional patient.
+            .task { await loadAppointments() }
+            .sheet(isPresented: $showingScheduleSheet, onDismiss: { Task { await loadAppointments() } }) {
                 ScheduleAppointmentView(patient: Patient.mock)
             }
         }
     }
-    
+
+    private func loadAppointments() async {
+        isLoading = true
+        defer { isLoading = false }
+        appointments = (try? await APIService.shared.getAllAppointments()) ?? []
+        // Poll every 15 seconds so the view stays live
+        try? await Task.sleep(nanoseconds: 15_000_000_000)
+        if !Task.isCancelled { await loadAppointments() }
+    }
+
     private func dateString(from date: Date) -> String {
         let formatter = DateFormatter()
         formatter.dateFormat = "MMMM d, yyyy"
         return formatter.string(from: date).uppercased()
     }
-    
-    private func mockName(for id: String) -> String {
-        switch id {
-        case "patient-0": return "Sarah Chen"
-        case "patient-1": return "Michael Rodriguez"
-        case "patient-2": return "Emily Johnson"
-        default: return "Unknown Patient"
+}
+
+struct FilterPill: View {
+    let label: String
+    let isSelected: Bool
+    var color: Color = Color(red: 0.1, green: 0.2, blue: 0.4)
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Text(label)
+                .font(.subheadline)
+                .fontWeight(isSelected ? .semibold : .regular)
+                .foregroundColor(isSelected ? .white : color)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 7)
+                .background(isSelected ? color : color.opacity(0.08))
+                .cornerRadius(20)
         }
-    }
-    
-    private func mockMRN(for id: String) -> String {
-        switch id {
-        case "patient-0": return "MRN-847261"
-        case "patient-1": return "MRN-592847"
-        case "patient-2": return "MRN-318529"
-        default: return "MRN-000000"
-        }
+        .buttonStyle(PlainButtonStyle())
     }
 }
 
