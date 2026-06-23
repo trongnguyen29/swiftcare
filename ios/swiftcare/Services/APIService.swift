@@ -5,7 +5,7 @@ class APIService {
 
     private let supabaseUrl = "https://ujqrxhhshxgqqjkblorh.supabase.co"
     private let supabaseKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVqcXJ4aGhzaHhncXFqa2Jsb3JoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk4MDU3NjAsImV4cCI6MjA5NTM4MTc2MH0.t4CgUYE5oPLhocC2YtRF-WW6tMWu2Cvd0mYB_A1jWhk"
-    private let workerUrl = "https://swiftcare.tnn-040.workers.dev"
+    let workerUrl = "https://swiftcare.tnn-040.workers.dev"
 
     private let patientTable      = "patient_summary"
     private let summaryTable      = "patient_ai_summary"
