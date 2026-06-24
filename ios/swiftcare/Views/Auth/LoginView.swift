@@ -9,80 +9,83 @@ struct LoginView: View {
     @State private var errorMessage: String?
 
     var body: some View {
-        GeometryReader { geo in
-            ScrollView {
-                VStack(spacing: 0) {
-                    Spacer(minLength: geo.size.height * 0.12)
+        ZStack {
+            Color(UIColor.systemGroupedBackground).ignoresSafeArea()
 
-                    VStack(spacing: 36) {
-                        // Header
-                        VStack(spacing: 10) {
-                            Image(systemName: "stethoscope")
-                                .font(.system(size: 52))
-                                .foregroundColor(Color(red: 0.1, green: 0.2, blue: 0.4))
-                            Text("SwiftCare")
-                                .font(.system(size: 32, weight: .bold))
-                            Text("Clinical Intelligence Platform")
-                                .font(.subheadline)
-                                .foregroundColor(.secondary)
-                        }
+            VStack(spacing: 40) {
+                Spacer()
 
-                        // Card
-                        VStack(spacing: 20) {
-                            formField(label: "EMAIL") {
-                                TextField("you@hospital.com", text: $email)
-                                    .keyboardType(.emailAddress)
-                                    .textInputAutocapitalization(.never)
-                                    .autocorrectionDisabled()
-                            }
-
-                            formField(label: "PASSWORD") {
-                                SecureField("••••••••", text: $password)
-                            }
-
-                            if let error = errorMessage {
-                                Text(error)
-                                    .font(.caption)
-                                    .foregroundColor(.red)
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-                            }
-
-                            Button(action: { Task { await signIn() } }) {
-                                Group {
-                                    if isLoading {
-                                        ProgressView()
-                                            .progressViewStyle(CircularProgressViewStyle(tint: .white))
-                                    } else {
-                                        Text("Sign In")
-                                            .fontWeight(.semibold)
-                                    }
-                                }
-                                .frame(maxWidth: .infinity)
-                                .padding()
-                                .background(
-                                    email.isEmpty || password.isEmpty
-                                        ? Color.gray.opacity(0.4)
-                                        : Color(red: 0.1, green: 0.2, blue: 0.4)
-                                )
-                                .foregroundColor(.white)
-                                .cornerRadius(10)
-                            }
-                            .disabled(isLoading || email.isEmpty || password.isEmpty)
-                        }
-                        .padding(24)
-                        .background(Color(UIColor.systemBackground))
-                        .cornerRadius(16)
-                        .shadow(color: .black.opacity(0.06), radius: 12, y: 4)
-                        .frame(maxWidth: 420)
+                // Logo
+                VStack(spacing: 12) {
+                    if UIImage(named: "SwiftCareLogo") != nil {
+                        Image("SwiftCareLogo")
+                            .resizable()
+                            .scaledToFit()
+                            .frame(width: 120, height: 120)
+                    } else {
+                        Image(systemName: "stethoscope")
+                            .font(.system(size: 56))
+                            .foregroundColor(Color(red: 0.1, green: 0.2, blue: 0.4))
                     }
-                    .padding(.horizontal, 24)
-
-                    Spacer(minLength: geo.size.height * 0.12)
+                    Text("SwiftCare")
+                        .font(.system(size: 34, weight: .bold))
+                    Text("Clinical Intelligence Platform")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
                 }
-                .frame(minHeight: geo.size.height)
+
+                // Card
+                VStack(spacing: 20) {
+                    formField(label: "EMAIL") {
+                        TextField("you@hospital.com", text: $email)
+                            .keyboardType(.emailAddress)
+                            .textInputAutocapitalization(.never)
+                            .autocorrectionDisabled()
+                    }
+
+                    formField(label: "PASSWORD") {
+                        SecureField("••••••••", text: $password)
+                    }
+
+                    if let error = errorMessage {
+                        Text(error)
+                            .font(.caption)
+                            .foregroundColor(.red)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+
+                    Button(action: { Task { await signIn() } }) {
+                        Group {
+                            if isLoading {
+                                ProgressView()
+                                    .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                            } else {
+                                Text("Sign In").fontWeight(.semibold)
+                            }
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding()
+                        .background(
+                            email.isEmpty || password.isEmpty
+                                ? Color.gray.opacity(0.35)
+                                : Color(red: 0.1, green: 0.2, blue: 0.4)
+                        )
+                        .foregroundColor(.white)
+                        .cornerRadius(10)
+                    }
+                    .disabled(isLoading || email.isEmpty || password.isEmpty)
+                }
+                .padding(28)
+                .background(Color(UIColor.systemBackground))
+                .cornerRadius(18)
+                .shadow(color: .black.opacity(0.07), radius: 16, y: 6)
+                .frame(maxWidth: 440)
+
+                Spacer()
             }
+            .frame(maxWidth: .infinity)
+            .padding(.horizontal, 32)
         }
-        .background(Color(UIColor.systemGroupedBackground).ignoresSafeArea())
     }
 
     @ViewBuilder
@@ -94,10 +97,7 @@ struct LoginView: View {
                 .foregroundColor(.secondary)
             content()
                 .padding()
-                .background(
-                    RoundedRectangle(cornerRadius: 8)
-                        .stroke(Color(UIColor.separator), lineWidth: 1)
-                )
+                .background(RoundedRectangle(cornerRadius: 8).stroke(Color(UIColor.separator), lineWidth: 1))
         }
     }
 

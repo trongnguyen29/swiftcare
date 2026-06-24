@@ -1,6 +1,6 @@
 import Foundation
+import Combine
 
-@MainActor
 class AuthService: ObservableObject {
     static let shared = AuthService()
 
@@ -21,23 +21,36 @@ class AuthService: ObservableObject {
     struct AuthUser: Codable {
         let id: String
         let email: String?
+        let user_metadata: UserMetadata?
+
+        struct UserMetadata: Codable {
+            let full_name: String?
+            let name: String?
+        }
     }
 
     enum AuthError: LocalizedError {
         case invalidCredentials
         case serverError(String)
-
         var errorDescription: String? {
             switch self {
-            case .invalidCredentials:     return "Invalid email or password."
-            case .serverError(let msg):   return msg
+            case .invalidCredentials: return "Invalid email or password."
+            case .serverError(let m): return m
             }
         }
     }
 
-    var isSignedIn: Bool  { session != nil }
+    var isSignedIn: Bool     { session != nil }
     var accessToken: String? { session?.access_token }
-    var userId: String?   { session?.user.id }
+    var userId: String?      { session?.user.id }
+
+    // Display name from auth metadata — set in Supabase dashboard → Users → Edit → User Metadata: {"full_name":"Marcus Webb"}
+    var practitionerName: String {
+        session?.user.user_metadata?.full_name
+            ?? session?.user.user_metadata?.name
+            ?? session?.user.email?.components(separatedBy: "@").first
+            ?? "Doctor"
+    }
 
     init() { restoreSession() }
 
@@ -58,7 +71,7 @@ class AuthService: ObservableObject {
         }
 
         let sess = try JSONDecoder().decode(AuthSession.self, from: data)
-        session = sess
+        await MainActor.run { session = sess }
         persist(sess)
     }
 
@@ -70,16 +83,16 @@ class AuthService: ObservableObject {
             req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
             try? await URLSession.shared.data(for: req)
         }
-        session = nil
+        await MainActor.run { session = nil }
         UserDefaults.standard.removeObject(forKey: sessionKey)
     }
 
     private func restoreSession() {
-        defer { isLoading = false }
+        defer { DispatchQueue.main.async { self.isLoading = false } }
         guard let data = UserDefaults.standard.data(forKey: sessionKey),
               let sess = try? JSONDecoder().decode(AuthSession.self, from: data),
               sess.expires_at > Date().timeIntervalSince1970 else { return }
-        session = sess
+        DispatchQueue.main.async { self.session = sess }
     }
 
     private func persist(_ sess: AuthSession) {

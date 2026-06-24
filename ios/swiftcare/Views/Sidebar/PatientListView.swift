@@ -46,10 +46,16 @@ struct PatientListView: View {
         return list
     }
     
+    @EnvironmentObject var auth: AuthService
+
     var body: some View {
         VStack(spacing: 0) {
             // Header
             VStack(alignment: .leading, spacing: 12) {
+                Text("Hi, Dr. \(auth.practitionerName.components(separatedBy: " ").last ?? auth.practitionerName) 👋")
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+                    .padding(.horizontal)
                 Text("Patients")
                     .font(.headline)
                     .padding(.horizontal)
