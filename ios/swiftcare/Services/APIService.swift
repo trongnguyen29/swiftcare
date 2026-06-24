@@ -48,12 +48,37 @@ class APIService {
     }
 
     func getPatientDetail(fhirId: String) async throws -> Patient {
-        async let patientTask  = fetchPatientRow(fhirId: fhirId)
-        async let vitalsTask   = fetchObservations(patientId: fhirId, view: "patient_latest_vitals")
-        async let labsTask     = fetchObservations(patientId: fhirId, view: "patient_latest_labs")
+        async let patientTask    = fetchPatientRow(fhirId: fhirId)
+        async let vitalsTask     = fetchObservations(patientId: fhirId, view: "patient_latest_vitals")
+        async let labsTask       = fetchObservations(patientId: fhirId, view: "patient_latest_labs")
+        async let conditionsTask = fetchFHIRRows(table: "fhir_condition",         patientId: fhirId, as: FHIRConditionRow.self)
+        async let medsTask       = fetchFHIRRows(table: "fhir_medication_request", patientId: fhirId, as: FHIRMedicationRequestRow.self)
+        async let allergiesTask  = fetchFHIRRows(table: "fhir_allergy_intolerance",patientId: fhirId, as: FHIRAllergyRow.self)
+        async let careTeamTask   = fetchFHIRRows(table: "fhir_care_team",          patientId: fhirId, as: FHIRCareTeamRow.self)
+        async let coverageTask   = fetchFHIRRows(table: "fhir_coverage",           patientId: fhirId, as: FHIRCoverageRow.self)
 
-        let (row, vitals, labs) = try await (patientTask, vitalsTask, labsTask)
-        return Patient(fromFHIR: row, vitals: vitals, labs: labs)
+        let row        = try await patientTask
+        let vitals     = try await vitalsTask
+        let labs       = try await labsTask
+        let conditions = try await conditionsTask
+        let meds       = try await medsTask
+        let allergies  = try await allergiesTask
+        let careTeam   = try await careTeamTask
+        let coverage   = try await coverageTask
+
+        return Patient(fromFHIR: row, vitals: vitals, labs: labs,
+                       conditions: conditions, medications: meds,
+                       allergies: allergies, careTeam: careTeam, coverage: coverage)
+    }
+
+    private func fetchFHIRRows<T: Decodable>(table: String, patientId: String, as type: T.Type) async throws -> [T] {
+        let url = supabaseURL(table, params: [
+            URLQueryItem(name: "select",     value: "fhir_id,patient_id,resource"),
+            URLQueryItem(name: "patient_id", value: "eq.\(patientId)"),
+        ])
+        let (data, response) = try await URLSession.shared.data(for: makeRequest(url))
+        guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else { return [] }
+        return (try? JSONDecoder().decode([T].self, from: data)) ?? []
     }
 
     private func fetchPatientRow(fhirId: String) async throws -> FHIRPatientRow {

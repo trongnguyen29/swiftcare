@@ -1,5 +1,9 @@
 import Foundation
 
+private extension Array {
+    func nilIfEmpty() -> [Element]? { isEmpty ? nil : self }
+}
+
 // MARK: - Supabase row wrappers
 
 struct FHIRPatientRow: Decodable {
@@ -13,11 +17,206 @@ struct FHIRAppointmentRow: Decodable {
     let resource: FHIRAppointmentResource
 }
 
+struct FHIRConditionRow: Decodable {
+    let fhir_id: String
+    let patient_id: String
+    let resource: FHIRConditionResource
+}
+
+struct FHIRMedicationRequestRow: Decodable {
+    let fhir_id: String
+    let patient_id: String
+    let resource: FHIRMedicationRequestResource
+}
+
+struct FHIRAllergyRow: Decodable {
+    let fhir_id: String
+    let patient_id: String
+    let resource: FHIRAllergyResource
+}
+
+struct FHIRCareTeamRow: Decodable {
+    let fhir_id: String
+    let patient_id: String
+    let resource: FHIRCareTeamResource
+}
+
+struct FHIRCoverageRow: Decodable {
+    let fhir_id: String
+    let patient_id: String
+    let resource: FHIRCoverageResource
+}
+
 struct LatestObservation: Decodable {
     let patient_id: String
     let code: String
     let value: String?
     let recorded_at: String?
+}
+
+// MARK: - FHIR Condition resource
+
+struct FHIRConditionResource: Decodable {
+    let id: String
+    let code: FHIRCodeableConcept?
+    let onsetDateTime: String?
+    let clinicalStatus: FHIRCodeableConcept?
+    let category: [FHIRCodeableConcept]?
+}
+
+// MARK: - FHIR MedicationRequest resource
+
+struct FHIRMedicationRequestResource: Decodable {
+    let id: String
+    let status: String?
+    let medicationCodeableConcept: FHIRCodeableConcept?
+    let authoredOn: String?
+    let dosageInstruction: [FHIRDosageInstruction]?
+}
+
+struct FHIRDosageInstruction: Decodable {
+    let text: String?
+    let route: FHIRCodeableConcept?
+    let doseAndRate: [FHIRDoseAndRate]?
+}
+
+struct FHIRDoseAndRate: Decodable {
+    let doseQuantity: FHIRQuantity?
+}
+
+struct FHIRQuantity: Decodable {
+    let value: Double?
+    let unit: String?
+}
+
+// MARK: - FHIR AllergyIntolerance resource
+
+struct FHIRAllergyResource: Decodable {
+    let id: String
+    let clinicalStatus: FHIRCodeableConcept?
+    let type: String?
+    let category: [String]?
+    let criticality: String?
+    let code: FHIRCodeableConcept?
+    let onsetDateTime: String?
+    let reaction: [FHIRAllergyReaction]?
+}
+
+struct FHIRAllergyReaction: Decodable {
+    let manifestation: [FHIRCodeableConcept]?
+    let severity: String?
+}
+
+// MARK: - FHIR CareTeam resource
+
+struct FHIRCareTeamResource: Decodable {
+    let id: String
+    let participant: [FHIRCareTeamParticipant]?
+}
+
+struct FHIRCareTeamParticipant: Decodable {
+    let role: [FHIRCodeableConcept]?
+    let member: FHIRActor?
+    let onBehalfOf: FHIRActor?
+}
+
+// MARK: - FHIR Coverage resource
+
+struct FHIRCoverageResource: Decodable {
+    let id: String
+    let status: String?
+    let type: FHIRCodeableConcept?
+    let payor: [FHIRActor]?
+    let subscriberId: String?
+    let `class`: [FHIRCoverageClass]?
+}
+
+struct FHIRCoverageClass: Decodable {
+    let value: String?
+    let name: String?
+}
+
+// MARK: - Conversion helpers
+
+extension FHIRConditionResource {
+    func toProblem() -> Problem {
+        let icd10 = code?.coding?.first(where: { $0.system?.contains("icd-10") == true })?.code
+            ?? code?.coding?.first?.code ?? ""
+        return Problem(
+            display:     code?.text ?? code?.coding?.first?.display ?? "",
+            icd10_code:  icd10,
+            snomed_code: code?.coding?.first(where: { $0.system?.contains("snomed") == true })?.code,
+            onset_date:  onsetDateTime ?? "",
+            status:      clinicalStatus?.coding?.first?.code ?? "active",
+            category:    category?.first?.coding?.first?.code == "encounter-diagnosis"
+                            ? "encounter-diagnosis" : "problem-list-item"
+        )
+    }
+}
+
+extension FHIRMedicationRequestResource {
+    func toMedication() -> Medication {
+        let dosage = dosageInstruction?.first
+        let dose = dosage?.doseAndRate?.first?.doseQuantity
+        return Medication(
+            name:        medicationCodeableConcept?.text ?? medicationCodeableConcept?.coding?.first?.display ?? "",
+            rxnorm_code: medicationCodeableConcept?.coding?.first(where: { $0.system?.contains("rxnorm") == true })?.code,
+            dose:        dose.map { "\(Int($0.value ?? 0))\($0.unit ?? "")" } ?? "",
+            route:       dosage?.route?.coding?.first?.display ?? dosage?.route?.text ?? "Oral",
+            frequency:   dosage?.text ?? "",
+            indication:  nil,
+            start_date:  authoredOn ?? "",
+            status:      status == "active" ? "active" : "discontinued"
+        )
+    }
+}
+
+extension FHIRAllergyResource {
+    func toAllergy() -> Allergy {
+        let reaction = self.reaction?.first
+        let sev = reaction?.severity ?? "mild"
+        let allergyType: String
+        switch (self.type ?? "").lowercased() {
+        case "allergy":     allergyType = "medication"
+        case "intolerance": allergyType = "medication"
+        default:            allergyType = "non-medication"
+        }
+        return Allergy(
+            substance: code?.text ?? code?.coding?.first?.display ?? "",
+            type:      allergyType,
+            reaction:  reaction?.manifestation?.first?.coding?.first?.display ?? reaction?.manifestation?.first?.text ?? "",
+            severity:  sev == "severe" ? "severe" : sev == "moderate" ? "moderate" : "mild",
+            onset_date: onsetDateTime,
+            status:    clinicalStatus?.coding?.first?.code == "active" ? "active" : "resolved"
+        )
+    }
+}
+
+extension FHIRCareTeamParticipant {
+    func toCareTeamMember() -> CareTeamMember {
+        CareTeamMember(
+            name:         member?.display ?? "",
+            role:         role?.first?.coding?.first?.display ?? "",
+            npi:          nil,
+            phone:        nil,
+            organization: onBehalfOf?.display
+        )
+    }
+}
+
+extension FHIRCoverageResource {
+    func toInsurance() -> Insurance {
+        Insurance(
+            coverage_status: status == "active" ? "active" : "cancelled",
+            coverage_type:   type?.text ?? type?.coding?.first?.display ?? "",
+            payer:           payor?.first?.display ?? "",
+            payer_id:        nil,
+            member_id:       subscriberId ?? "",
+            subscriber_id:   subscriberId,
+            group_id:        `class`?.first(where: { $0.name?.lowercased().contains("group") == true })?.value,
+            relationship_to_subscriber: "self"
+        )
+    }
 }
 
 // MARK: - FHIR Patient resource (US Core)
@@ -116,7 +315,14 @@ struct FHIRActor: Decodable {
 // MARK: - Patient init from FHIR
 
 extension Patient {
-    init(fromFHIR row: FHIRPatientRow, vitals: [LatestObservation] = [], labs: [LatestObservation] = []) {
+    init(fromFHIR row: FHIRPatientRow,
+         vitals: [LatestObservation] = [],
+         labs: [LatestObservation] = [],
+         conditions: [FHIRConditionRow] = [],
+         medications: [FHIRMedicationRequestRow] = [],
+         allergies: [FHIRAllergyRow] = [],
+         careTeam: [FHIRCareTeamRow] = [],
+         coverage: [FHIRCoverageRow] = []) {
         let r = row.resource
         let officialName = r.name?.first(where: { $0.use == "official" }) ?? r.name?.first
         let addr = r.address?.first
@@ -193,13 +399,13 @@ extension Patient {
         hemoglobin                     = labMap["718-7"]
         wbc                            = labMap["6690-2"]
         platelets                      = labMap["777-3"]
-        problems                       = nil
-        medications                    = nil
-        allergies                      = nil
+        problems       = conditions.map { $0.resource.toProblem() }.nilIfEmpty()
+        self.medications = medications.map { $0.resource.toMedication() }.nilIfEmpty()
+        self.allergies   = allergies.map { $0.resource.toAllergy() }.nilIfEmpty()
+        care_team      = careTeam.flatMap { $0.resource.participant ?? [] }.map { $0.toCareTeamMember() }.nilIfEmpty()
+        insurance      = coverage.first?.resource.toInsurance()
         immunizations                  = nil
         procedures                     = nil
-        care_team                      = nil
-        insurance                      = nil
         encounters                     = nil
         clinical_notes                 = nil
         functional_status              = nil

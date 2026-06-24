@@ -18,15 +18,18 @@ enum PatientTab: String, CaseIterable {
 
 struct PatientDetailView: View {
     let patient: Patient
+    @State private var detailedPatient: Patient? = nil
     @State private var activeTab: PatientTab = .overview
     @State private var showAIChat = false
     @State private var startRecordingSignal = false
+
+    private var displayPatient: Patient { detailedPatient ?? patient }
     
     var body: some View {
         VStack(spacing: 0) {
             // Banner
             PatientBannerView(
-                patient: patient,
+                patient: displayPatient,
                 onAskAI: { showAIChat = true },
                 onStartRecording: {
                     activeTab = .visit
@@ -72,7 +75,7 @@ struct PatientDetailView: View {
                 switch activeTab {
                 case .overview:
                     ScrollView {
-                        PatientOverviewView(patient: patient)
+                        PatientOverviewView(patient: displayPatient)
                             .padding()
                     }
                     .background(Color(UIColor.systemGroupedBackground))
@@ -80,25 +83,28 @@ struct PatientDetailView: View {
                 case .chart:
                     ScrollView {
                         VStack(spacing: 16) {
-                            PatientChartView(patient: patient)
-                            PatientChartDetailView(patient: patient)
+                            PatientChartView(patient: displayPatient)
+                            PatientChartDetailView(patient: displayPatient)
                         }
                         .padding()
                     }
                     .background(Color(UIColor.systemGroupedBackground))
 
                 case .visit:
-                    VisitView(patient: patient)
-                
+                    VisitView(patient: displayPatient)
+
                 case .appointments:
-                    PatientAppointmentsView(patient: patient)
+                    PatientAppointmentsView(patient: displayPatient)
                 }
             }
         }
         .navigationTitle(patient.displayName)
         .navigationBarTitleDisplayMode(.inline)
         .sheet(isPresented: $showAIChat) {
-            AIChatView(patient: patient)
+            AIChatView(patient: displayPatient)
+        }
+        .task(id: patient.ptnum) {
+            detailedPatient = try? await APIService.shared.getPatientDetail(fhirId: patient.ptnum)
         }
     }
 }
