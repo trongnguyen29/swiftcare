@@ -194,22 +194,28 @@ struct ScheduleAppointmentView: View {
     private func scheduleAppointment() async {
         isSaving = true
         defer { isSaving = false }
+
         let iso = ISO8601DateFormatter()
         iso.formatOptions = [.withInternetDateTime]
-        let appt = APIService.NewAppointment(
-            ptnum: patient.ptnum,
-            patient_name: patient.displayName,
-            appointment_date: iso.string(from: combineDateAndTime()),
-            duration_minutes: parseDuration(),
-            appointment_type: visitType.rawValue,
-            status: AppointmentStatus.scheduled.rawValue,
-            reason: reason,
-            doctor_name: provider,
-            phone_number: patient.phone ?? "",
-            is_reminder_sent: false
-        )
+        let start = combineDateAndTime()
+        let end = start.addingTimeInterval(TimeInterval(parseDuration() * 60))
+
+        let resource: [String: Any] = [
+            "resourceType": "Appointment",
+            "status": "booked",
+            "serviceType": [["coding": [["display": visitType.rawValue]]]],
+            "start": iso.string(from: start),
+            "end": iso.string(from: end),
+            "minutesDuration": parseDuration(),
+            "participant": [
+                ["actor": ["reference": "Patient/\(patient.ptnum)", "display": patient.displayName], "status": "accepted"],
+                ["actor": ["reference": "Practitioner/unknown", "display": provider], "status": "accepted"]
+            ],
+            "reasonCode": [["text": reason]]
+        ]
+
         do {
-            _ = try await APIService.shared.createAppointment(appt)
+            _ = try await APIService.shared.createAppointment(resource, patientId: patient.ptnum)
             dismiss()
         } catch {
             saveError = "Failed to schedule appointment. Please try again."

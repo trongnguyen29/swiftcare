@@ -3,17 +3,15 @@ use std::fs;
 use tauri::Manager;
 
 // ── Credentials ───────────────────────────────────────────────────────────────
-const SUPABASE_URL:   &str = "https://ujqrxhhshxgqqjkblorh.supabase.co";
-const SUPABASE_KEY:   &str = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVqcXJ4aGhzaHhncXFqa2Jsb3JoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk4MDU3NjAsImV4cCI6MjA5NTM4MTc2MH0.t4CgUYE5oPLhocC2YtRF-WW6tMWu2Cvd0mYB_A1jWhk";
+const SUPABASE_URL:   &str = "https://zbnvigxkforwbmphghpg.supabase.co";
+const SUPABASE_KEY:   &str = "sb_publishable_U3hegesGlIhrENKOreNbuQ_WIKcYrOL";
 // All AI — chat, summaries, and transcription — goes through the Cloudflare
 // Worker, which holds the provider keys. No API keys are baked into the binary.
 const WORKER_URL:     &str = "https://swiftcare.tnn-040.workers.dev";
 
-const TABLE: &str = "patient_summary";
-// Generated summaries live in their own table — `patient_summary` is a
-// materialized view (read-only, can't add columns or write to it).
+const TABLE:         &str = "fhir_patient";
 const SUMMARY_TABLE: &str = "patient_ai_summary";
-const COLS:  &str = "ptnum,label,scc,first_name,last_name,age,administrative_sex,race,ethnicity,state,systolic_bp,diastolic_bp,heart_rate,bmi,total_cholesterol,ldl,hdl,triglycerides,hba1c,glucose,creatinine,egfr,hemoglobin,wbc,platelets,problems";
+const COLS:          &str = "fhir_id,resource";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 fn data_dir(app: &tauri::AppHandle) -> Result<std::path::PathBuf, String> {
@@ -31,14 +29,9 @@ async fn query_patients(query: String, filter: String) -> Result<Vec<serde_json:
         ("order",  "last_name.asc,first_name.asc".to_string()),
         ("limit",  "150".to_string()),
     ];
-    if !query.trim().is_empty() {
-        params.push(("ptnum", format!("ilike.*{}*", query.trim())));
-    }
-    match filter.as_str() {
-        "positive" => params.push(("label", "eq.1".to_string())),
-        "control"  => params.push(("label", "eq.0".to_string())),
-        _ => {}
-    }
+    // Search and label filtering are handled in the frontend after parsing FHIR resources
+    let _ = query;
+    let _ = filter;
     let res = reqwest::Client::new()
         .get(format!("{}/rest/v1/{}", SUPABASE_URL, TABLE))
         .query(&params)
@@ -62,9 +55,9 @@ async fn query_patients(query: String, filter: String) -> Result<Vec<serde_json:
 #[tauri::command]
 async fn get_patient_summary(ptnum: String) -> Result<Option<serde_json::Value>, String> {
     let params: Vec<(&str, String)> = vec![
-        ("select", "ai_summary,ai_summary_hash,ai_summary_at".to_string()),
-        ("ptnum",  format!("eq.{}", ptnum)),
-        ("limit",  "1".to_string()),
+        ("select",     "ai_summary,ai_summary_hash,ai_summary_at".to_string()),
+        ("patient_id", format!("eq.{}", ptnum)),
+        ("limit",      "1".to_string()),
     ];
     let res = reqwest::Client::new()
         .get(format!("{}/rest/v1/{}", SUPABASE_URL, SUMMARY_TABLE))
@@ -90,12 +83,12 @@ async fn get_patient_summary(ptnum: String) -> Result<Option<serde_json::Value>,
 #[tauri::command]
 async fn save_patient_summary(ptnum: String, summary: String, hash: String) -> Result<(), String> {
     let body = serde_json::json!({
-        "ptnum":           ptnum,
+        "patient_id":      ptnum,
         "ai_summary":      summary,
         "ai_summary_hash": hash,
         "ai_summary_at":   chrono::Utc::now().to_rfc3339(),
     });
-    // Upsert: the row may not exist yet, so POST with merge-duplicates on ptnum.
+    // Upsert: the row may not exist yet, so POST with merge-duplicates on patient_id.
     let res = reqwest::Client::new()
         .post(format!("{}/rest/v1/{}", SUPABASE_URL, SUMMARY_TABLE))
         .header("apikey", SUPABASE_KEY)

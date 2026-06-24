@@ -1,84 +1,81 @@
 // Supabase credentials and queries are handled by the Rust backend (src-tauri/src/lib.rs).
-// This file contains only types and the column-code normaliser used by api.ts.
+// This file contains FHIR resource types and the normaliser used by api.ts.
 
-function num(v: unknown): number | null {
-  if (v == null) return null
-  const n = Number(v)
-  return isNaN(n) ? null : n
+
+function findExtension(extensions: any[], url: string): any | null {
+  return extensions?.find((e: any) => e.url === url) ?? null
+}
+
+function computeAge(birthDate: string | null): number | null {
+  if (!birthDate) return null
+  const birth = new Date(birthDate)
+  const now = new Date()
+  return now.getFullYear() - birth.getFullYear() -
+    (now < new Date(now.getFullYear(), birth.getMonth(), birth.getDate()) ? 1 : 0)
 }
 
 export function normalizeRow(row: Record<string, unknown>): Patient {
+  const r = (row['resource'] as Record<string, any>) ?? {}
+  const fhirId = String(row['fhir_id'] ?? r['id'] ?? '')
+
+  const officialName = (r['name'] as any[])?.find((n: any) => n.use === 'official')
+    ?? (r['name'] as any[])?.[0]
+  const addr = (r['address'] as any[])?.[0]
+  const exts: any[] = r['extension'] ?? []
+
+  const raceExt    = findExtension(exts, 'http://hl7.org/fhir/us/core/StructureDefinition/us-core-race')
+  const ethExt     = findExtension(exts, 'http://hl7.org/fhir/us/core/StructureDefinition/us-core-ethnicity')
+  const birthSex   = findExtension(exts, 'http://hl7.org/fhir/us/core/StructureDefinition/us-core-birthsex')?.valueCode ?? null
+  const genderIdExt = findExtension(exts, 'http://hl7.org/fhir/us/core/StructureDefinition/us-core-genderIdentity')
+
+  const race     = raceExt?.extension?.find((e: any) => e.url === 'text')?.valueString ?? null
+  const ethnicity = ethExt?.extension?.find((e: any) => e.url === 'text')?.valueString ?? null
+  const genderIdentity = genderIdExt?.valueCodeableConcept?.text ?? null
+
+  const telecom: any[] = r['telecom'] ?? []
+  const preferredLang = (r['communication'] as any[])?.find((c: any) => c.preferred)?.language?.coding?.[0]?.code ?? null
+
   return {
-    ptnum:              String(row['ptnum'] ?? ''),
-    label:              Number(row['label'] ?? 0),
-    scc:                num(row['scc']),
-    first_name:         (row['first_name']  as string) ?? null,
-    last_name:          (row['last_name']   as string) ?? null,
-    age:                num(row['age']),
-    administrative_sex: (row['administrative_sex'] as string) ?? null,
-    race:               (row['race']        as string) ?? null,
-    ethnicity:          (row['ethnicity']   as string) ?? null,
-    state:              (row['state']       as string) ?? null,
-    systolic_bp:        num(row['systolic_bp']),
-    diastolic_bp:       num(row['diastolic_bp']),
-    heart_rate:         num(row['heart_rate']),
-    bmi:                num(row['bmi']),
-    total_cholesterol:  num(row['total_cholesterol']),
-    ldl:                num(row['ldl']),
-    hdl:                num(row['hdl']),
-    triglycerides:      num(row['triglycerides']),
-    hba1c:              num(row['hba1c']),
-    glucose:            num(row['glucose']),
-    creatinine:         num(row['creatinine']),
-    egfr:               num(row['egfr']),
-    hemoglobin:         num(row['hemoglobin']),
-    wbc:                num(row['wbc']),
-    platelets:          num(row['platelets']),
-    problems:           (row['problems']    as any[]) ?? [],
-    medications:        [],
-    allergies:          [],
-    immunizations:      [],
-    procedures:         [],
-    care_team:          [],
-    encounters:         [],
-    clinical_notes:     [],
-    goals:              [],
-    imaging_results:    [],
-    insurance:          null,
-    tobacco_status:     null,
-    gender:             null,
-    marital:            null,
-    middle_name:        null,
-    date_of_birth:      null,
-    birth_sex:          null,
-    gender_identity:    null,
-    preferred_language: null,
+    ptnum:              fhirId,
+    label:              0,
+    scc:                null,
+    first_name:         officialName?.given?.[0] ?? null,
+    last_name:          officialName?.family ?? null,
+    middle_name:        officialName?.given?.[1] ?? null,
+    date_of_birth:      r['birthDate'] ?? null,
+    age:                computeAge(r['birthDate'] ?? null),
+    administrative_sex: r['gender'] ?? null,
+    birth_sex:          birthSex,
+    gender_identity:    genderIdentity,
+    gender:             r['gender'] ?? null,
+    preferred_language: preferredLang,
+    race,
+    ethnicity,
     tribal_affiliation: null,
-    address_line:       null,
-    city:               null,
-    zip_code:           null,
-    phone:              null,
-    email:              null,
-    respiratory_rate:   null,
-    temperature_c:      null,
-    oxygen_saturation:  null,
-    height_cm:          null,
-    weight_kg:          null,
-    pain_score:         null,
-    functional_status:  null,
-    mental_cognitive_status: null,
-    disability_status:  null,
-    pregnancy_status:   null,
-    sdoh_education_level:          null,
-    sdoh_financial_strain:         null,
-    sdoh_housing_status:           null,
-    sdoh_transportation_insecurity: null,
-    sdoh_veteran_status:           null,
-    sdoh_social_isolation:         null,
-    assessment_plan:    null,
-    provenance_author:  null,
-    provenance_organization: null,
-    provenance_timestamp: null,
+    marital:            null,
+    address_line:       addr?.line?.[0] ?? null,
+    city:               addr?.city ?? null,
+    state:              addr?.state ?? null,
+    zip_code:           addr?.postalCode ?? null,
+    phone:              telecom.find((t: any) => t.system === 'phone')?.value ?? null,
+    email:              telecom.find((t: any) => t.system === 'email')?.value ?? null,
+    // Vitals/labs populated separately from fhir_observation
+    systolic_bp: null, diastolic_bp: null, heart_rate: null, bmi: null,
+    total_cholesterol: null, ldl: null, hdl: null, triglycerides: null,
+    hba1c: null, glucose: null, creatinine: null, egfr: null,
+    hemoglobin: null, wbc: null, platelets: null,
+    respiratory_rate: null, temperature_c: null, oxygen_saturation: null,
+    height_cm: null, weight_kg: null, pain_score: null,
+    problems: [], medications: [], allergies: [], immunizations: [],
+    procedures: [], care_team: [], encounters: [], clinical_notes: [],
+    goals: [], imaging_results: [], insurance: null,
+    functional_status: null, mental_cognitive_status: null,
+    disability_status: null, pregnancy_status: null,
+    sdoh_education_level: null, sdoh_financial_strain: null,
+    sdoh_housing_status: null, sdoh_transportation_insecurity: null,
+    sdoh_veteran_status: null, sdoh_social_isolation: null,
+    tobacco_status: null, assessment_plan: null,
+    provenance_author: null, provenance_organization: null, provenance_timestamp: null,
   } as Patient
 }
 

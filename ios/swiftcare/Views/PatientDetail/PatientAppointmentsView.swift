@@ -132,7 +132,7 @@ struct PatientAppointmentsView: View {
     private func loadAppointments() async {
         isLoading = true
         defer { isLoading = false }
-        appointments = (try? await APIService.shared.getAppointments(ptnum: patient.ptnum)) ?? []
+        appointments = (try? await APIService.shared.getAppointments(patientId: patient.ptnum)) ?? []
         try? await Task.sleep(nanoseconds: 15_000_000_000)
         if !Task.isCancelled { await loadAppointments() }
     }

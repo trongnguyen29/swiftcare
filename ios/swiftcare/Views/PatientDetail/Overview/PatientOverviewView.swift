@@ -269,7 +269,7 @@ struct PatientOverviewView: View {
         aiError = nil
         
         do {
-            if let stored = try await APIService.shared.getPatientSummary(ptnum: patient.ptnum), stored.ai_summary_hash == fp {
+            if let stored = try await APIService.shared.getPatientSummary(patientId: patient.ptnum), stored.ai_summary_hash == fp {
                 aiOverview = stored.ai_summary
                 aiLoading = false
                 return
@@ -298,7 +298,7 @@ struct PatientOverviewView: View {
             
             // Save fire and forget
             Task {
-                try? await APIService.shared.savePatientSummary(ptnum: patient.ptnum, summary: reply, hash: fp)
+                try? await APIService.shared.savePatientSummary(patientId: patient.ptnum, summary: reply, hash: fp)
             }
         } catch {
             aiError = error.localizedDescription
