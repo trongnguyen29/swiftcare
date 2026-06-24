@@ -140,7 +140,6 @@ export default function Schedule({ onOpenPatient: _onOpenPatient }: ScheduleProp
                     width: "44px",
                     padding: "6px 4px",
                     borderRadius: "var(--radius-md)",
-                    border: "none",
                     cursor: "pointer",
                     background: isSelected ? "var(--color-teal)" : "var(--color-surface-2)",
                     color: isSelected ? "white" : isToday ? "var(--color-teal)" : "var(--color-text-muted)",
@@ -149,6 +148,7 @@ export default function Schedule({ onOpenPatient: _onOpenPatient }: ScheduleProp
                     alignItems: "center",
                     gap: "3px",
                     transition: "all 0.15s ease",
+                    border: isSelected ? "none" : "1px solid var(--color-border)",
                   }}
                 >
                   <div style={{ fontSize: "9px", fontWeight: 700, textTransform: "uppercase" }}>

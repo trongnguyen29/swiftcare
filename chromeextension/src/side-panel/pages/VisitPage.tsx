@@ -395,7 +395,7 @@ export default function VisitPage({ patient, onBack, embedded }: VisitPageProps)
                         color: "var(--color-text-muted)",
                         lineHeight: 1.6,
                         maxHeight: "120px",
-                        overflowY: "auto",
+                        overflowY: "auto" as const,
                       }}
                     >
                       {transcript}
@@ -416,16 +416,17 @@ export default function VisitPage({ patient, onBack, embedded }: VisitPageProps)
                     placeholder="Generated note will appear here…"
                     style={{
                       width: "100%",
-                      background: "var(--color-surface-2)",
-                      border: "1px solid var(--color-border)",
+                      background: "var(--color-surface)",
+                      border: "1px solid var(--color-border-2)",
                       borderRadius: "var(--radius-md)",
                       color: "var(--color-text)",
                       padding: "12px",
                       fontSize: "13px",
                       lineHeight: "1.6",
-                      resize: "vertical",
+                      resize: "vertical" as const,
                       minHeight: "220px",
                       outline: "none",
+                      boxShadow: "inset 0 1px 3px rgba(0,0,0,0.04)",
                     }}
                   />
                   <div className="ai-warning" style={{ marginTop: "8px" }}>

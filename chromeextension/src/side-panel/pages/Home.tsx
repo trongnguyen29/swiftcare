@@ -419,11 +419,12 @@ export default function Home({ onOpenPatient, onShowSchedule }: HomeProps) {
           <div
             style={{
               width: "100%",
-              background: "var(--color-surface)",
+              background: "#ffffff",
               borderRadius: "var(--radius-xl) var(--radius-xl) 0 0",
               padding: "20px 16px 32px",
               maxHeight: "70%",
               overflow: "auto",
+              boxShadow: "0 -4px 24px rgba(0,0,0,0.12)",
             }}
             onClick={(e) => e.stopPropagation()}
           >

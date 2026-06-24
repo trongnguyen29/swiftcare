@@ -1,33 +1,33 @@
 /* =========================================================
    SwiftCare Chrome Extension — Global Design System
-   Dark glassmorphism, teal accent, Inter typography
+   Light mode, teal accent, Inter typography
    ========================================================= */
 
 :root {
   /* Palette */
-  --color-bg:          #0a0f1e;
-  --color-surface:     #0f172a;
-  --color-surface-2:   #1e293b;
-  --color-surface-3:   #273449;
-  --color-border:      rgba(255,255,255,0.08);
-  --color-border-2:    rgba(255,255,255,0.13);
+  --color-bg:          #f8fafc;
+  --color-surface:     #ffffff;
+  --color-surface-2:   #f1f5f9;
+  --color-surface-3:   #e2e8f0;
+  --color-border:      rgba(0,0,0,0.08);
+  --color-border-2:    rgba(0,0,0,0.14);
 
-  --color-teal:        #14b8a6;
-  --color-teal-dark:   #0d9488;
-  --color-teal-glow:   rgba(20, 184, 166, 0.2);
-  --color-teal-subtle: rgba(20, 184, 166, 0.1);
+  --color-teal:        #0d9488;
+  --color-teal-dark:   #0f766e;
+  --color-teal-glow:   rgba(13, 148, 136, 0.15);
+  --color-teal-subtle: rgba(13, 148, 136, 0.08);
 
-  --color-text:        #f1f5f9;
-  --color-text-muted:  #94a3b8;
-  --color-text-faint:  #475569;
+  --color-text:        #0f172a;
+  --color-text-muted:  #64748b;
+  --color-text-faint:  #94a3b8;
 
-  --color-red:         #ef4444;
-  --color-red-subtle:  rgba(239, 68, 68, 0.12);
-  --color-amber:       #f59e0b;
-  --color-amber-subtle:rgba(245, 158, 11, 0.12);
-  --color-green:       #22c55e;
-  --color-green-subtle:rgba(34, 197, 94, 0.12);
-  --color-indigo:      #818cf8;
+  --color-red:         #dc2626;
+  --color-red-subtle:  rgba(220, 38, 38, 0.08);
+  --color-amber:       #d97706;
+  --color-amber-subtle:rgba(217, 119, 6, 0.1);
+  --color-green:       #16a34a;
+  --color-green-subtle:rgba(22, 163, 74, 0.08);
+  --color-indigo:      #4f46e5;
 
   /* Radius */
   --radius-sm:  8px;
@@ -37,9 +37,9 @@
   --radius-full: 9999px;
 
   /* Shadows */
-  --shadow-sm:  0 1px 3px rgba(0,0,0,0.4);
-  --shadow-md:  0 4px 16px rgba(0,0,0,0.5);
-  --shadow-teal:0 4px 20px rgba(20,184,166,0.25);
+  --shadow-sm:  0 1px 3px rgba(0,0,0,0.08);
+  --shadow-md:  0 4px 16px rgba(0,0,0,0.12);
+  --shadow-teal:0 4px 16px rgba(13,148,136,0.2);
 
   /* Transitions */
   --t-fast:     0.15s ease;
@@ -71,8 +71,8 @@ input, textarea { font-family: inherit; }
 /* ── Scrollbar ── */
 ::-webkit-scrollbar { width: 4px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: var(--color-surface-3); border-radius: var(--radius-full); }
-::-webkit-scrollbar-thumb:hover { background: var(--color-border-2); }
+::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: var(--radius-full); }
+::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
 
 /* ── Shell ── */
 .shell {
@@ -97,7 +97,7 @@ input, textarea { font-family: inherit; }
   align-items: center;
   gap: 3px;
   padding: 10px 4px 8px;
-  color: var(--color-text-faint);
+  color: #94a3b8;
   font-size: 10px;
   font-weight: 600;
   letter-spacing: 0.02em;
@@ -167,12 +167,13 @@ input, textarea { font-family: inherit; }
 
 /* ── Glass cards ── */
 .glass-card {
-  background: rgba(30, 41, 59, 0.6);
+  background: rgba(255, 255, 255, 0.75);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
   padding: 14px;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.06);
 }
 
 /* ── Stat cards ── */
@@ -202,7 +203,7 @@ input, textarea { font-family: inherit; }
 
 /* ── Quick Record hero ── */
 .quick-record-hero {
-  background: linear-gradient(135deg, var(--color-teal-dark), #0a7a74);
+  background: linear-gradient(135deg, var(--color-teal), var(--color-teal-dark));
   border-radius: var(--radius-lg);
   padding: 18px;
   display: flex;
@@ -296,6 +297,7 @@ input, textarea { font-family: inherit; }
   outline: none;
   color: var(--color-text);
   font-size: 14px;
+  caret-color: var(--color-teal);
 }
 .search-bar input::placeholder { color: var(--color-text-faint); }
 .search-bar__clear {
@@ -346,13 +348,14 @@ input, textarea { font-family: inherit; }
 .patient-chip {
   flex-shrink: 0;
   width: 110px;
-  background: var(--color-surface-2);
+  background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
   padding: 10px;
   cursor: pointer;
   transition: all var(--t-fast);
   text-align: left;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.06);
 }
 
 .patient-chip:hover {
@@ -655,8 +658,8 @@ input, textarea { font-family: inherit; }
 
 .soap-editor textarea {
   width: 100%;
-  background: var(--color-surface-2);
-  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border-2);
   border-radius: var(--radius-md);
   color: var(--color-text);
   padding: 12px;
@@ -666,6 +669,7 @@ input, textarea { font-family: inherit; }
   outline: none;
   transition: border-color var(--t-fast);
   min-height: 280px;
+  box-shadow: inset 0 1px 3px rgba(0,0,0,0.04);
 }
 
 .soap-editor textarea:focus { border-color: var(--color-teal); }
@@ -692,6 +696,7 @@ input, textarea { font-family: inherit; }
   background: var(--color-teal-subtle);
   cursor: pointer;
   transition: all var(--t-spring);
+  box-shadow: 0 2px 8px rgba(13,148,136,0.15);
 }
 
 .record-btn:hover { transform: scale(1.06); background: var(--color-teal-glow); }
@@ -746,6 +751,7 @@ input, textarea { font-family: inherit; }
   align-self: flex-start;
   border-bottom-left-radius: var(--radius-sm);
   border: 1px solid var(--color-border);
+  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
 }
 
 .chat-input-row {
@@ -760,7 +766,7 @@ input, textarea { font-family: inherit; }
 .chat-input-row input {
   flex: 1;
   background: var(--color-surface-2);
-  border: 1px solid var(--color-border);
+  border: 1px solid var(--color-border-2);
   border-radius: var(--radius-md);
   color: var(--color-text);
   padding: 9px 12px;
@@ -897,13 +903,13 @@ input, textarea { font-family: inherit; }
   bottom: 20px;
   left: 50%;
   transform: translateX(-50%) translateY(0);
-  background: var(--color-surface-3);
-  border: 1px solid var(--color-border-2);
+  background: #1e293b;
+  border: 1px solid rgba(255,255,255,0.08);
   border-radius: var(--radius-lg);
   padding: 10px 18px;
   font-size: 13px;
   font-weight: 500;
-  color: var(--color-text);
+  color: #f1f5f9;
   box-shadow: var(--shadow-md);
   z-index: 9999;
   animation: toast-in 0.3s var(--t-spring) both;
@@ -950,11 +956,12 @@ input, textarea { font-family: inherit; }
 
 /* ── Unassigned visit card ── */
 .unassigned-card {
-  background: var(--color-surface-2);
+  background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-left: 3px solid var(--color-amber);
   border-radius: var(--radius-md);
   padding: 12px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
 }
 
 /* ── Utility ── */
