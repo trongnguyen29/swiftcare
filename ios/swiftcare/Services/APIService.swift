@@ -13,7 +13,8 @@ class APIService {
         var req = URLRequest(url: url)
         req.httpMethod = method
         req.setValue(supabaseKey, forHTTPHeaderField: "apikey")
-        req.setValue("Bearer \(supabaseKey)", forHTTPHeaderField: "Authorization")
+        let bearer = AuthService.shared.accessToken ?? supabaseKey
+        req.setValue("Bearer \(bearer)", forHTTPHeaderField: "Authorization")
         req.setValue("application/json", forHTTPHeaderField: "Accept")
         return req
     }

@@ -1,21 +1,34 @@
-//
-//  ContentView.swift
-//  swiftcare
-//
-//  Created by Trong Nguyen on 6/13/26.
-//
-
 import SwiftUI
 
 struct ContentView: View {
+    @EnvironmentObject var auth: AuthService
     @State private var selectedPatient: Patient?
-    
+
     var body: some View {
+        Group {
+            if auth.isLoading {
+                ProgressView("Loading…")
+            } else if auth.isSignedIn {
+                mainApp
+            } else {
+                LoginView()
+            }
+        }
+    }
+
+    private var mainApp: some View {
         TabView {
-            // Patients Tab
             NavigationSplitView {
                 PatientListView(selectedPatient: $selectedPatient)
                     .navigationTitle("SwiftCare")
+                    .toolbar {
+                        ToolbarItem(placement: .navigationBarTrailing) {
+                            Button("Sign Out") {
+                                Task { await auth.signOut() }
+                            }
+                            .foregroundColor(.red)
+                        }
+                    }
             } detail: {
                 if let patient = selectedPatient {
                     PatientDetailView(patient: patient)
@@ -34,19 +47,14 @@ struct ContentView: View {
                     }
                 }
             }
-            .tabItem {
-                Label("Patients", systemImage: "person.2.fill")
-            }
-            
-            // Global Appointments Tab
+            .tabItem { Label("Patients", systemImage: "person.2.fill") }
+
             GlobalAppointmentsView()
-                .tabItem {
-                    Label("Appointments", systemImage: "calendar")
-                }
+                .tabItem { Label("Appointments", systemImage: "calendar") }
         }
     }
 }
 
 #Preview {
-    ContentView()
+    ContentView().environmentObject(AuthService.shared)
 }
