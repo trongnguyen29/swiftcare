@@ -115,7 +115,7 @@ struct PatientListView: View {
                     PatientRow(patient: p, isSelected: selectedPatient?.id == p.id)
                         .tag(p)
                         .listRowInsets(EdgeInsets())
-                        .listRowBackground(selectedPatient?.id == p.id ? Color.teal.opacity(0.1) : Color.clear)
+                        .listRowBackground(selectedPatient?.id == p.id ? Color.brandLight : Color.clear)
                 }
                 .listStyle(PlainListStyle())
             }
@@ -146,7 +146,7 @@ struct PatientRow: View {
             HStack {
                 Text(patient.displayName)
                     .font(.system(size: 14, weight: .semibold))
-                    .foregroundColor(isSelected ? .teal : .primary)
+                    .foregroundColor(isSelected ? .brand : .primary)
                 
                 Spacer()
                 

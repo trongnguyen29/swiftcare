@@ -24,7 +24,7 @@ struct ScheduleAppointmentView: View {
             // Header
             HStack {
                 Image(systemName: "calendar.badge.plus")
-                    .foregroundColor(Color(red: 0.1, green: 0.2, blue: 0.4))
+                    .foregroundColor(Color.brand)
                     .font(.title2)
                 Text("Schedule Appointment")
                     .font(.title2)
@@ -175,7 +175,7 @@ struct ScheduleAppointmentView: View {
                     .foregroundColor(.white)
                     .padding(.horizontal, 24)
                     .padding(.vertical, 12)
-                    .background(Color(red: 0.1, green: 0.2, blue: 0.4))
+                    .background(Color.brand)
                     .cornerRadius(8)
                 }
                 .disabled(isSaving)

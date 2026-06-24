@@ -9,12 +9,12 @@ struct PatientBannerView: View {
         HStack(alignment: .top, spacing: 16) {
             // Avatar
             Circle()
-                .fill(Color.teal.opacity(0.2))
+                .fill(Color.brandBlush)
                 .frame(width: 56, height: 56)
                 .overlay(
                     Text(initials)
                         .font(.title2.bold())
-                        .foregroundColor(.teal)
+                        .foregroundColor(.brand)
                 )
             
             // Info
@@ -30,7 +30,7 @@ struct PatientBannerView: View {
                         BadgeView(text: "Former Smoker", color: .orange)
                     }
                     if patient.sdoh_veteran_status == true {
-                        BadgeView(text: "Veteran", color: .blue)
+                        BadgeView(text: "Veteran", color: .brand)
                     }
                 }
                 
@@ -85,8 +85,8 @@ struct PatientBannerView: View {
                             .font(.system(size: 13, weight: .semibold))
                             .padding(.horizontal, 12)
                             .padding(.vertical, 6)
-                            .background(Color.purple.opacity(0.1))
-                            .foregroundColor(.purple)
+                            .background(Color.brandBlush)
+                            .foregroundColor(.brandRose)
                             .cornerRadius(8)
                         }
                         .buttonStyle(PlainButtonStyle())
@@ -110,7 +110,7 @@ struct PatientBannerView: View {
                                 Capsule()
                                     .fill(Color.gray.opacity(0.2))
                                 Capsule()
-                                    .fill(Color.teal)
+                                    .fill(Color.brand)
                                     .frame(width: geometry.size.width * CGFloat(pct))
                             }
                         }

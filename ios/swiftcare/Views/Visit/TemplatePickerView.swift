@@ -92,7 +92,7 @@ struct TemplatePickerView: View {
                                         .foregroundStyle(isNone ? .white : .secondary)
                                         .frame(width: 32, height: 32)
                                         .background(
-                                            Circle().fill(isNone ? Color.indigo : Color.secondary.opacity(0.12))
+                                            Circle().fill(isNone ? Color.brand : Color.secondary.opacity(0.12))
                                         )
                                     VStack(alignment: .leading, spacing: 2) {
                                         Text("No Disease Focus")
@@ -112,9 +112,9 @@ struct TemplatePickerView: View {
                                 .frame(maxWidth: .infinity, alignment: .leading)
                                 .background(
                                     RoundedRectangle(cornerRadius: 14)
-                                        .fill(isNone ? Color.indigo : Color(UIColor.systemBackground))
+                                        .fill(isNone ? Color.brand : Color(UIColor.systemBackground))
                                         .shadow(
-                                            color: isNone ? Color.indigo.opacity(0.35) : Color.black.opacity(0.06),
+                                            color: isNone ? Color.brand.opacity(0.35) : Color.black.opacity(0.06),
                                             radius: isNone ? 8 : 3,
                                             y: isNone ? 4 : 1
                                         )
@@ -179,7 +179,7 @@ struct TemplatePickerView: View {
                                     .clipShape(RoundedRectangle(cornerRadius: 12))
                                     .overlay(
                                         RoundedRectangle(cornerRadius: 12)
-                                            .stroke(Color.purple.opacity(0.4), lineWidth: 1)
+                                            .stroke(Color.brandRose.opacity(0.4), lineWidth: 1)
                                     )
                                     .overlay(
                                         Group {
@@ -241,7 +241,7 @@ struct TemplatePickerView: View {
                         dismiss()
                     }
                     .fontWeight(.semibold)
-                    .tint(activeCategory == .noteFormat ? .teal : .indigo)
+                    .tint(activeCategory == .noteFormat ? .brand : .brandRose)
                 }
             }
         }
@@ -283,7 +283,7 @@ private struct TemplateCard: View {
 
     /// Accent color: teal for note formats, indigo for disease templates
     private var accent: Color {
-        template.category == .disease ? .indigo : .teal
+        template.category == .disease ? .brandRose : .brand
     }
 
     var body: some View {

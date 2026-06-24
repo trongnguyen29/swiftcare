@@ -115,7 +115,7 @@ struct VisitView: View {
                                         Image(systemName: "chevron.right")
                                     }
                                     .font(.caption)
-                                    .foregroundStyle(.teal)
+                                    .foregroundStyle(Color.brand)
                                 }
                             }
                             ScrollView(.horizontal, showsIndicators: false) {
@@ -125,7 +125,7 @@ struct VisitView: View {
                                             label: fmt.name,
                                             icon: fmt.icon,
                                             isSelected: selectedNoteFormat.id == fmt.id,
-                                            accent: .teal
+                                            accent: .brand
                                         ) {
                                             selectedNoteFormat = fmt
                                             TemplateStore.shared.selectedNoteFormat = fmt
@@ -153,7 +153,7 @@ struct VisitView: View {
                                         Image(systemName: "chevron.right")
                                     }
                                     .font(.caption)
-                                    .foregroundStyle(.indigo)
+                                    .foregroundStyle(Color.brand)
                                 }
                             }
                             ScrollView(.horizontal, showsIndicators: false) {
@@ -163,7 +163,7 @@ struct VisitView: View {
                                         label: "None",
                                         icon: "circle.slash",
                                         isSelected: selectedDiseaseTemplate == nil,
-                                        accent: .indigo
+                                        accent: .brand
                                     ) {
                                         selectedDiseaseTemplate = nil
                                         TemplateStore.shared.selectedDiseaseTemplate = nil
@@ -173,7 +173,7 @@ struct VisitView: View {
                                             label: disease.name,
                                             icon: disease.icon,
                                             isSelected: selectedDiseaseTemplate?.id == disease.id,
-                                            accent: .indigo
+                                            accent: .brand
                                         ) {
                                             selectedDiseaseTemplate = disease
                                             TemplateStore.shared.selectedDiseaseTemplate = disease
@@ -198,7 +198,7 @@ struct VisitView: View {
                                             label: "\(lang.flag) \(lang.name)",
                                             icon: "",
                                             isSelected: selectedLanguage.id == lang.id,
-                                            accent: .teal
+                                            accent: .brand
                                         ) {
                                             selectedLanguage = lang
                                             TranscriptionLanguage.persisted = lang
@@ -243,7 +243,7 @@ struct VisitView: View {
                     switch recorderState {
                     case .idle, .error:
                         Button(action: startRecording) {
-                            Circle().fill(Color.teal)
+                            Circle().fill(Color.brand)
                                 .frame(width: 60, height: 60)
                                 .overlay(Image(systemName: "mic.fill").font(.title2).foregroundColor(.white))
                         }
@@ -267,8 +267,8 @@ struct VisitView: View {
                         }
                         .font(.headline)
                         .padding(.horizontal, 20).padding(.vertical, 10)
-                        .background(Color.teal.opacity(0.1))
-                        .foregroundColor(.teal).cornerRadius(10)
+                        .background(Color.brandLight)
+                        .foregroundColor(.brand).cornerRadius(10)
                     }
                 }
 
@@ -336,8 +336,8 @@ struct VisitView: View {
                                             Text(tName)
                                                 .font(.system(size: 9, weight: .semibold))
                                                 .padding(.horizontal, 5).padding(.vertical, 2)
-                                                .background(Color.teal.opacity(0.12))
-                                                .foregroundColor(.teal)
+                                                .background(Color.brandBlush)
+                                                .foregroundColor(.brand)
                                                 .clipShape(Capsule())
                                         }
                                     }
@@ -378,12 +378,12 @@ struct VisitView: View {
                 HStack(spacing: 6) {
                     Label(selectedNoteFormat.name, systemImage: selectedNoteFormat.icon)
                         .font(.caption.bold())
-                        .foregroundStyle(.teal)
+                        .foregroundStyle(Color.brand)
                     if let disease = selectedDiseaseTemplate {
                         Text("·").font(.caption).foregroundStyle(.secondary)
                         Label(disease.name, systemImage: disease.icon)
                             .font(.caption.bold())
-                            .foregroundStyle(.indigo)
+                            .foregroundStyle(Color.brand)
                     }
                 }
 
@@ -397,7 +397,7 @@ struct VisitView: View {
                     }
                     .disabled(noteGenerating || transcript.isEmpty)
                     .padding(.horizontal, 8).padding(.vertical, 4)
-                    .background(Color.purple.opacity(0.1)).cornerRadius(6).foregroundColor(.purple)
+                    .background(Color.brandBlush).cornerRadius(6).foregroundColor(.brandRose)
 
                     Button(action: saveNote) {
                         Label("Save Note", systemImage: "square.and.arrow.down")
@@ -405,7 +405,7 @@ struct VisitView: View {
                     }
                     .disabled(transcript.isEmpty)
                     .padding(.horizontal, 8).padding(.vertical, 4)
-                    .background(Color.teal.opacity(0.1)).cornerRadius(6).foregroundColor(.teal)
+                    .background(Color.brandLight).cornerRadius(6).foregroundColor(.brand)
 
                     if saved {
                         Label("Saved", systemImage: "checkmark.circle.fill")
@@ -439,7 +439,7 @@ struct VisitView: View {
                         Text("AI DRAFT")
                             .font(.system(size: 9, weight: .bold))
                             .padding(.horizontal, 4).padding(.vertical, 1)
-                            .background(Color.blue).foregroundColor(.white).cornerRadius(3)
+                            .background(Color.brand).foregroundColor(.white).cornerRadius(3)
                     }
                 }
 

@@ -16,9 +16,9 @@ enum AppointmentType: String, Codable, CaseIterable {
 
     var color: Color {
         switch self {
-        case .newPatient:   return .blue
-        case .followUp:     return .teal
-        case .physicalExam: return .purple
+        case .newPatient:   return .brand
+        case .followUp:     return .brand
+        case .physicalExam: return .brandRose
         }
     }
 }

@@ -58,7 +58,7 @@ struct PatientDetailView: View {
                             VStack {
                                 Spacer()
                                 Rectangle()
-                                    .fill(activeTab == tab ? Color.teal : Color.clear)
+                                    .fill(activeTab == tab ? Color.brand : Color.clear)
                                     .frame(height: 2)
                             }
                         )

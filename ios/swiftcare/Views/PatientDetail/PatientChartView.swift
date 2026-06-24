@@ -175,7 +175,7 @@ struct PatientChartDetailView: View {
 
     private func statusBadgeColor(_ status: String) -> Color {
         switch status.lowercased() {
-        case "active":   return .teal
+        case "active":   return .brand
         case "resolved": return .secondary
         case "inactive": return .orange
         default:         return .secondary
@@ -357,8 +357,8 @@ struct PatientChartDetailView: View {
                                 Text(member.role)
                                     .font(.system(size: 10, weight: .bold))
                                     .padding(.horizontal, 5).padding(.vertical, 1)
-                                    .background(Color.teal.opacity(0.12))
-                                    .foregroundColor(.teal).cornerRadius(4)
+                                    .background(Color.brandBlush)
+                                    .foregroundColor(.brand).cornerRadius(4)
                             }
                             if let phone = member.phone {
                                 Text(phone).font(.caption).foregroundColor(.secondary)
@@ -383,7 +383,7 @@ struct PatientChartDetailView: View {
                 VStack(alignment: .leading, spacing: 6) {
                     ForEach(goals, id: \.self) { goal in
                         HStack(alignment: .top, spacing: 6) {
-                            Text("→").font(.caption).foregroundColor(.teal).padding(.top, 1)
+                            Text("→").font(.caption).foregroundColor(.brand).padding(.top, 1)
                             Text(goal).font(.subheadline)
                         }
                     }
@@ -421,7 +421,7 @@ struct ExpandableList<T: Identifiable, Content: View>: View {
                     withAnimation { expanded.toggle() }
                 }
                 .font(.caption)
-                .foregroundColor(.teal)
+                .foregroundColor(.brand)
                 .padding(.top, 4)
             }
         }

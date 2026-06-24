@@ -319,10 +319,10 @@ struct CardView<Content: View>: View {
             HStack {
                 if let icon = icon {
                     Image(systemName: icon)
-                        .foregroundColor(.purple)
+                        .foregroundColor(.brandRose)
                         .font(.caption)
                         .padding(4)
-                        .background(Color.purple.opacity(0.1))
+                        .background(Color.brandBlush)
                         .cornerRadius(4)
                 }
                 Text(title)

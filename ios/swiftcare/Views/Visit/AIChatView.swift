@@ -48,7 +48,7 @@ struct AIChatView: View {
                             if messages.isEmpty && !isLoading {
                                 VStack(spacing: 12) {
                                     Image(systemName: "sparkles")
-                                        .font(.system(size: 32)).foregroundColor(.purple.opacity(0.6))
+                                        .font(.system(size: 32)).foregroundColor(.brandRose.opacity(0.6))
                                     Text("Ask anything about this patient")
                                         .font(.headline)
                                     Text("Full patient record loaded as context")
@@ -78,7 +78,7 @@ struct AIChatView: View {
                                             Text("You").font(.caption2).foregroundColor(.secondary)
                                             Text(msg.content)
                                                 .padding(10)
-                                                .background(Color.teal)
+                                                .background(Color.brand)
                                                 .foregroundColor(.white)
                                                 .cornerRadius(14)
                                         }
@@ -142,7 +142,7 @@ struct AIChatView: View {
                     Button(action: sendMessage) {
                         Image(systemName: "arrow.up.circle.fill")
                             .font(.system(size: 30))
-                            .foregroundColor(canSend ? .teal : .secondary)
+                            .foregroundColor(canSend ? .brand : .secondary)
                     }
                     .disabled(!canSend)
                 }

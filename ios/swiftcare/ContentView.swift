@@ -20,8 +20,21 @@ struct ContentView: View {
         TabView {
             NavigationSplitView {
                 PatientListView(selectedPatient: $selectedPatient)
-                    .navigationTitle("SwiftCare")
+                    .navigationBarTitleDisplayMode(.inline)
                     .toolbar {
+                        ToolbarItem(placement: .principal) {
+                            HStack(spacing: 6) {
+                                if UIImage(named: "SwiftCareLogo") != nil {
+                                    Image("SwiftCareLogo")
+                                        .resizable()
+                                        .scaledToFill()
+                                        .frame(width: 28, height: 28)
+                                        .clipShape(Circle())
+                                }
+                                Text("SwiftCare")
+                                    .font(.headline.bold())
+                            }
+                        }
                         ToolbarItem(placement: .navigationBarTrailing) {
                             Button("Sign Out") {
                                 Task { await auth.signOut() }
@@ -36,7 +49,7 @@ struct ContentView: View {
                     VStack(spacing: 16) {
                         Image(systemName: "cross.case.fill")
                             .font(.system(size: 48))
-                            .foregroundColor(.teal)
+                            .foregroundColor(.brand)
                         Text("Select a patient")
                             .font(.title2.bold())
                         Text("Choose a patient from the sidebar to view their EHR summary and start recording a visit.")

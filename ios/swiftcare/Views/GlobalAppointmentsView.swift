@@ -89,7 +89,7 @@ struct GlobalAppointmentsView: View {
                                     )
                                     .overlay(
                                         Circle()
-                                            .fill(Color.teal)
+                                            .fill(Color.brand)
                                             .frame(width: 20, height: 20)
                                             .overlay(Text("1").font(.caption2.bold()).foregroundColor(.white))
                                             .offset(x: 10, y: -10)
@@ -107,7 +107,7 @@ struct GlobalAppointmentsView: View {
                                     .foregroundColor(.white)
                                     .padding(.horizontal, 16)
                                     .padding(.vertical, 10)
-                                    .background(Color(red: 0.1, green: 0.2, blue: 0.4))
+                                    .background(Color.brand)
                                     .cornerRadius(8)
                                 }
                                 .buttonStyle(PlainButtonStyle())
@@ -170,7 +170,7 @@ struct GlobalAppointmentsView: View {
 struct FilterPill: View {
     let label: String
     let isSelected: Bool
-    var color: Color = Color(red: 0.1, green: 0.2, blue: 0.4)
+    var color: Color = Color.brand
     let action: () -> Void
 
     var body: some View {

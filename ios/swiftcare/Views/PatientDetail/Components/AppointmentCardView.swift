@@ -116,7 +116,7 @@ struct StatusBadge: View {
     
     var statusColor: Color {
         switch status {
-        case .confirmed: return .teal
+        case .confirmed: return .brand
         case .scheduled: return .orange
         case .canceled: return .red
         case .completed: return .green
@@ -141,12 +141,12 @@ struct ActionButton: View {
         .fontWeight(.semibold)
         .padding(.horizontal, 12)
         .padding(.vertical, 6)
-        .foregroundColor(isReminderSent ? .teal : .white)
+        .foregroundColor(isReminderSent ? .brand : .white)
         .background(isReminderSent ? Color.clear : Color.init(red: 0.1, green: 0.2, blue: 0.4)) // Dark navy blue from Figma
         .cornerRadius(8)
         .overlay(
             RoundedRectangle(cornerRadius: 8)
-                .stroke(isReminderSent ? Color.teal.opacity(0.3) : Color.clear, lineWidth: 1)
+                .stroke(isReminderSent ? Color.brand.opacity(0.3) : Color.clear, lineWidth: 1)
         )
     }
 }

@@ -80,7 +80,7 @@ struct PatientAppointmentsView: View {
                                 )
                                 .overlay(
                                     Circle()
-                                        .fill(Color.teal)
+                                        .fill(Color.brand)
                                         .frame(width: 20, height: 20)
                                         .overlay(Text("1").font(.caption2.bold()).foregroundColor(.white))
                                         .offset(x: 10, y: -10)
@@ -98,7 +98,7 @@ struct PatientAppointmentsView: View {
                                 .foregroundColor(.white)
                                 .padding(.horizontal, 16)
                                 .padding(.vertical, 10)
-                                .background(Color(red: 0.1, green: 0.2, blue: 0.4))
+                                .background(Color.brand)
                                 .cornerRadius(8)
                             }
                             .buttonStyle(PlainButtonStyle())
@@ -179,7 +179,7 @@ struct MiniAppointmentCard: View {
                     Text("Reminder sent")
                 }
                 .font(.caption)
-                .foregroundColor(.teal)
+                .foregroundColor(.brand)
                 .padding(.top, 4)
             }
         }
@@ -247,10 +247,10 @@ struct CustomCalendarView: View {
                     ZStack {
                         if isSelected {
                             Circle()
-                                .fill(Color(red: 0.1, green: 0.2, blue: 0.4)) // Navy
+                                .fill(Color.brand) // Navy
                         } else if isToday {
                             Circle()
-                                .stroke(Color.teal, lineWidth: 1.5)
+                                .stroke(Color.brand, lineWidth: 1.5)
                         }
                         
                         VStack(spacing: 2) {
@@ -262,7 +262,7 @@ struct CustomCalendarView: View {
                             // Mock dots for events
                             if [18, 19, 23, 25].contains(day) {
                                 Circle()
-                                    .fill(isSelected ? .white : .teal)
+                                    .fill(isSelected ? .white : .brand)
                                     .frame(width: 4, height: 4)
                             }
                         }
