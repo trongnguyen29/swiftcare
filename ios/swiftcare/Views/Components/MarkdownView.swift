@@ -35,12 +35,12 @@ struct ClinicalMarkdownView: View {
                 .font(.title3.bold()).foregroundColor(.primary).padding(.top, 4)
         } else if let bullet = bulletContent(line) {
             HStack(alignment: .top, spacing: 8) {
-                Text("•").font(.body).foregroundColor(.teal)
+                Text("•").font(.body).foregroundColor(.brand)
                 Text(inline(bullet)).font(.body)
             }
         } else if let (num, rest) = numberedContent(line) {
             HStack(alignment: .top, spacing: 8) {
-                Text("\(num).").font(.body.weight(.semibold)).foregroundColor(.teal)
+                Text("\(num).").font(.body.weight(.semibold)).foregroundColor(.brand)
                 Text(inline(rest)).font(.body)
             }
         } else {

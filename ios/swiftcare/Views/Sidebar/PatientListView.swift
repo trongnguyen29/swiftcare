@@ -117,7 +117,7 @@ struct PatientListView: View {
                         .tag(p)
                         .listRowInsets(EdgeInsets())
                         .listRowBackground(selectedPatient?.id == p.id ? Color.brandLight : Color.clear)
-                        .listRowBackground(selectedPatient?.id == p.id ? Color.teal.opacity(0.1) : Color.clear)
+                        .listRowBackground(selectedPatient?.id == p.id ? Color.brandLight : Color.clear)
                         .contentShape(Rectangle())
                         .onTapGesture { selectedPatient = p }
                 }

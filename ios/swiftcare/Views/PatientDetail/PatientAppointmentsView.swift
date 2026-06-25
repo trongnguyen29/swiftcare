@@ -91,11 +91,6 @@ struct PatientAppointmentsView: View {
                                 .padding(.vertical, 10)
                                 .background(Color.brand)
                                 .cornerRadius(8)
-                                HStack { Image(systemName: "plus"); Text("Schedule Appointment") }
-                                    .font(.subheadline.bold()).foregroundColor(.white)
-                                    .padding(.horizontal, 16).padding(.vertical, 10)
-                                    .background(Color(red: 0.1, green: 0.2, blue: 0.4))
-                                    .cornerRadius(8)
                             }
                             .buttonStyle(.plain)
                         }
@@ -254,14 +249,14 @@ struct CustomCalendarView: View {
                         let hasAppt = appointmentDates.contains { calendar.isDate($0, inSameDayAs: date) }
                         Button { selectedDate = date } label: {
                             ZStack {
-                                if isSelected { Circle().fill(Color.teal) }
-                                else if isToday { Circle().stroke(Color.teal, lineWidth: 1.5) }
+                                if isSelected { Circle().fill(Color.brand) }
+                                else if isToday { Circle().stroke(Color.brand, lineWidth: 1.5) }
                                 VStack(spacing: 2) {
                                     Text(date.formatted(.dateTime.day()))
                                         .font(.system(size: 14, weight: isSelected ? .bold : .regular))
                                         .foregroundColor(isSelected ? .white : .primary)
                                     Circle()
-                                        .fill(isSelected ? .white : (hasAppt ? Color.teal : Color.clear))
+                                        .fill(isSelected ? .white : (hasAppt ? Color.brand : Color.clear))
                                         .frame(width: 4, height: 4)
                                 }
                             }

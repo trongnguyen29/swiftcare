@@ -88,7 +88,7 @@ private struct VisitCard: View {
                     if let tn = visit.templateName {
                         Text(tn).font(.system(size: 9, weight: .semibold))
                             .padding(.horizontal, 5).padding(.vertical, 2)
-                            .background(Color.teal.opacity(0.12)).foregroundColor(.teal).clipShape(Capsule())
+                            .background(Color.brandBlush).foregroundColor(.brand).clipShape(Capsule())
                     }
                 }
                 Spacer()
@@ -101,7 +101,7 @@ private struct VisitCard: View {
                     .font(.caption).foregroundColor(.secondary)
                     .lineLimit(expanded ? nil : 3)
                 Button(expanded ? "Show less" : "Show more") { withAnimation { expanded.toggle() } }
-                    .font(.caption.bold()).foregroundColor(.teal)
+                    .font(.caption.bold()).foregroundColor(.brand)
             }
 
             // Note excerpt
@@ -120,7 +120,7 @@ private struct VisitCard: View {
                 } else {
                     Button(action: onPlayAudio) {
                         Label("Play Recording", systemImage: "play.circle.fill")
-                            .font(.system(size: 12, weight: .semibold)).foregroundColor(.teal)
+                            .font(.system(size: 12, weight: .semibold)).foregroundColor(.brand)
                     }
                 }
             }
@@ -157,7 +157,7 @@ private struct AudioPlayerView: View {
         HStack(spacing: 10) {
             Button(action: togglePlay) {
                 Image(systemName: isPlaying ? "pause.circle.fill" : "play.circle.fill")
-                    .font(.title2).foregroundColor(.teal)
+                    .font(.title2).foregroundColor(.brand)
             }
             Text("Recording").font(.caption).foregroundColor(.secondary)
             Spacer()

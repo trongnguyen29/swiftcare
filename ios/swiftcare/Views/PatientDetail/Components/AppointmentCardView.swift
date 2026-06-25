@@ -62,7 +62,7 @@ struct AppointmentCardView: View {
                         Text(timeString(from: appointment.date))
                             .font(.title3.bold()).monospacedDigit()
                         Text("\(appointment.durationMinutes) min")
-                            .font(.caption.weight(.semibold)).foregroundColor(.teal)
+                            .font(.caption.weight(.semibold)).foregroundColor(.brand)
                     }
                     .frame(minWidth: 78, alignment: .leading)
 
@@ -167,10 +167,10 @@ struct ActionButton: View {
         )
         .font(.caption).fontWeight(.semibold)
         .padding(.horizontal, 12).padding(.vertical, 6)
-        .foregroundColor(isReminderSent ? .teal : .white)
+        .foregroundColor(isReminderSent ? .brand : .white)
         .background(isReminderSent ? Color.clear : Color(red: 0.1, green: 0.2, blue: 0.4))
         .cornerRadius(8)
-        .overlay(RoundedRectangle(cornerRadius: 8).stroke(isReminderSent ? Color.teal.opacity(0.3) : Color.clear, lineWidth: 1))
+        .overlay(RoundedRectangle(cornerRadius: 8).stroke(isReminderSent ? Color.brandRose.opacity(0.3) : Color.clear, lineWidth: 1))
     }
 }
 

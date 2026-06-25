@@ -23,14 +23,11 @@ enum AppointmentType: String, Codable, Hashable {
     var color: Color {
         switch self {
         case .newPatient:   return .brand
-        case .followUp:     return .brand
-        case .physicalExam: return .brandRose
-        case .inPerson:     return .primary
-        case .telehealth:   return .teal
-        case .phone:        return .purple
-        case .newPatient:   return .blue
-        case .followUp:     return .teal
-        case .physicalExam: return .indigo
+        case .followUp:     return .brandRose
+        case .physicalExam: return .brandBlush
+        case .inPerson:     return .brand
+        case .telehealth:   return .brandRose
+        case .phone:        return .brand
         }
     }
 }

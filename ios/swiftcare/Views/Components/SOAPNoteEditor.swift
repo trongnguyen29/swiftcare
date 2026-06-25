@@ -9,7 +9,7 @@ struct SOAPNoteEditor: View {
 
     var body: some View {
         VStack(spacing: 14) {
-            card("Subjective", icon: "person.text.rectangle", accent: .teal) {
+            card("Subjective", icon: "person.text.rectangle", accent: .brand) {
                 field("Chief Complaint", \.chiefComplaint, minHeight: 50)
                 field("History of Present Illness", \.hpi, minHeight: 90)
                 field("Review of Systems", \.ros, minHeight: 70)

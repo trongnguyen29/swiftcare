@@ -48,7 +48,7 @@ struct HomeView: View {
                 quickRecordHero
                 searchSection
                 if !recents.recents.isEmpty { recentPatientsSection }
-                if loadingUnassigned || !unassigned.isEmpty { unassignedSection }
+                if !unassigned.isEmpty { unassignedSection }
                 scheduleSection
             }
             .padding()
@@ -66,7 +66,7 @@ struct HomeView: View {
             await loadPatientsIfNeeded()
         }
         .onReceive(NotificationCenter.default.publisher(for: UIApplication.willEnterForegroundNotification)) { _ in
-            Task { await loadUnassigned() }
+            Task { await appointmentStore.loadAppointments() }
         }
     }
 
@@ -93,7 +93,7 @@ struct HomeView: View {
 
     private var statCards: some View {
         HStack(spacing: 12) {
-            StatCard(icon: "calendar", tint: .teal,
+            StatCard(icon: "calendar", tint: .brand,
                      value: "\(todaysAppointments.count)", label: "Today",
                      action: onShowAppointments)
             StatCard(icon: "tray.full", tint: .orange,
@@ -125,11 +125,11 @@ struct HomeView: View {
             }
             .padding(18)
             .background(
-                LinearGradient(colors: [Color.teal, Color(red: 0.0, green: 0.5, blue: 0.5)],
+                LinearGradient(colors: [Color.brand, Color.brandRose],
                                startPoint: .topLeading, endPoint: .bottomTrailing)
             )
             .cornerRadius(18)
-            .shadow(color: .teal.opacity(0.3), radius: 10, y: 4)
+            .shadow(color: Color.brand.opacity(0.3), radius: 10, y: 4)
         }
         .buttonStyle(.plain)
     }
@@ -198,8 +198,8 @@ struct HomeView: View {
                         Button { Task { await resolveAndOpen(ptnum: r.ptnum) } } label: {
                             VStack(alignment: .leading, spacing: 8) {
                                 ZStack {
-                                    Circle().fill(Color.teal.opacity(0.15)).frame(width: 36, height: 36)
-                                    Text(initials(r.name)).font(.caption.bold()).foregroundColor(.teal)
+                                    Circle().fill(Color.brandBlush).frame(width: 36, height: 36)
+                                    Text(initials(r.name)).font(.caption.bold()).foregroundColor(.brand)
                                 }
                                 Text(r.name).font(.caption.weight(.semibold)).foregroundColor(.primary)
                                     .lineLimit(2)
@@ -305,9 +305,9 @@ struct HomeView: View {
         } label: {
             HStack(spacing: 12) {
                 Text(entry.appointment.date.formatted(.dateTime.hour().minute()))
-                    .font(.subheadline.weight(.bold)).foregroundColor(seen ? .secondary : .teal)
+                    .font(.subheadline.weight(.bold)).foregroundColor(seen ? .secondary : .brand)
                     .frame(width: 60)
-                Rectangle().fill((seen ? Color.secondary : Color.teal).opacity(0.35))
+                Rectangle().fill((seen ? Color.secondary : Color.brand).opacity(0.35))
                     .frame(width: 3).cornerRadius(2)
                 VStack(alignment: .leading, spacing: 3) {
                     Text(entry.patientName)
@@ -416,7 +416,7 @@ private struct UnassignedCard: View {
                     Label("Assign", systemImage: "person.badge.plus")
                         .font(.system(size: 12, weight: .semibold))
                         .padding(.horizontal, 10).padding(.vertical, 5)
-                        .background(Color.teal.opacity(0.1)).foregroundColor(.teal).cornerRadius(8)
+                        .background(Color.brandLight).foregroundColor(.brand).cornerRadius(8)
                 }
             }
             if !visit.transcript.isEmpty {

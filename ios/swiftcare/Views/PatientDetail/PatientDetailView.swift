@@ -54,7 +54,7 @@ struct PatientDetailView: View {
                         .font(.system(size: 14, weight: .semibold))
                         .padding(.vertical, 12)
                         .frame(maxWidth: .infinity)
-                        .foregroundColor(activeTab == tab ? .teal : .secondary)
+                        .foregroundColor(activeTab == tab ? .brand : .secondary)
                         .background(
                             VStack {
                                 Spacer()
@@ -92,8 +92,7 @@ struct PatientDetailView: View {
                     .background(Color(UIColor.systemGroupedBackground))
 
                 case .visit:
-                    VisitView(patient: displayPatient)
-                    VisitView(patient: patient, startSignal: startRecordingSignal)
+                    VisitView(patient: displayPatient, startSignal: startRecordingSignal)
 
                 case .pastVisits:
                     ScrollView {
