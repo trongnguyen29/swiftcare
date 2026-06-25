@@ -35,7 +35,8 @@ class AuthService: ObservableObject {
     @Published var biometricLocked       = false
     @Published var pendingMFA: MFAFactor?
     @Published var mfaEnrollmentRequired = false
-    @Published var isMFAEnrolled         = false  // true once a verified TOTP factor exists
+    @Published var isMFAEnrolled         = false
+    @Published var shouldPromptTouchID   = false  // shown once after first password sign-in
 
     private let base         = "https://zbnvigxkforwbmphghpg.supabase.co"
     private let anonKey      = "sb_publishable_U3hegesGlIhrENKOreNbuQ_WIKcYrOL"
@@ -106,7 +107,8 @@ class AuthService: ObservableObject {
     }
 
     var biometricsAvailable: Bool {
-        LAContext().canEvaluatePolicy(.deviceOwnerAuthenticationWithBiometrics, error: nil)
+        var error: NSError?
+        return LAContext().canEvaluatePolicy(.deviceOwnerAuthenticationWithBiometrics, error: &error)
     }
 
     var biometryType: String { "Touch ID" }
@@ -124,6 +126,7 @@ class AuthService: ObservableObject {
         let sess = try JSONDecoder().decode(AuthSession.self, from: data)
         await apply(sess)
         scheduleRefresh(for: sess)
+        await MainActor.run { biometricLocked = false }
 
         let userKey = mfaFactorKey(for: sess.user.id)
         if let storedId = Keychain.load(key: userKey).flatMap({ String(data: $0, encoding: .utf8) }) {
@@ -157,6 +160,7 @@ class AuthService: ObservableObject {
             try? await createProfile(userId: sess.user.id, token: sess.access_token)
             await apply(sess)
             scheduleRefresh(for: sess)
+            await MainActor.run { biometricLocked = false }
         } else {
             // Email confirmation required — throw a friendly message
             throw AuthError.serverError("Account created! Check your email to confirm before signing in.")
@@ -171,9 +175,11 @@ class AuthService: ObservableObject {
             req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
             try? await URLSession.shared.data(for: req)
         }
-        await MainActor.run { session = nil; pendingMFA = nil; biometricLocked = false; mfaEnrollmentRequired = false }
-        Keychain.delete(key: sessionKey)
-        Keychain.delete(key: bioKey)
+        await MainActor.run { session = nil; pendingMFA = nil; biometricLocked = true; mfaEnrollmentRequired = false }
+        // If biometrics enabled, keep session in Keychain so Touch ID can restore it
+        // Otherwise delete it fully (standard sign-out)
+        if !biometricsEnabled { Keychain.delete(key: sessionKey) }
+        // bioKey and mfaFactorKey always persist across sign-outs
     }
 
     // MARK: - MFA
@@ -271,7 +277,13 @@ class AuthService: ObservableObject {
         if let uid = session?.user.id, let idData = factorId.data(using: .utf8) {
             Keychain.save(idData, key: mfaFactorKey(for: uid))
         }
-        await MainActor.run { pendingMFA = nil; isMFAEnrolled = true; mfaEnrollmentRequired = false }
+        let offerTouchID = !biometricsEnabled
+        await MainActor.run {
+            pendingMFA = nil
+            isMFAEnrolled = true
+            mfaEnrollmentRequired = false
+            if offerTouchID { shouldPromptTouchID = true }
+        }
     }
 
     func unenrollMFA(factorId: String) async throws {
@@ -319,9 +331,22 @@ class AuthService: ObservableObject {
 
     func unlockWithBiometrics() async {
         let success = await authenticateWithBiometrics()
-        await MainActor.run {
-            if success { biometricLocked = false }
+        guard success else { return }
+
+        // Restore session from Keychain if not already in memory
+        if session == nil,
+           let data = Keychain.load(key: sessionKey),
+           let sess = try? JSONDecoder().decode(AuthSession.self, from: data) {
+            if sess.expires_at > Date().timeIntervalSince1970 {
+                await MainActor.run { session = sess }
+                scheduleRefresh(for: sess)
+            } else {
+                // Expired — refresh using stored refresh token
+                await refreshToken(using: sess.refresh_token)
+            }
         }
+
+        await MainActor.run { biometricLocked = false }
     }
 
     // MARK: - Token Refresh

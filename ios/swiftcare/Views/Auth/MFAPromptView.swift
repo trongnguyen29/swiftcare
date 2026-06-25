@@ -72,6 +72,7 @@ struct MFAPromptView: View {
 
                     Button("Skip for Now") {
                         auth.mfaEnrollmentRequired = false
+                        if !auth.biometricsEnabled { auth.shouldPromptTouchID = true }
                     }
                     .font(.subheadline)
                     .foregroundColor(.secondary)
@@ -223,6 +224,7 @@ struct MFAPromptView: View {
                 .multilineTextAlignment(.center).padding(.horizontal, 32)
             Button("Enter SwiftCare →") {
                 auth.mfaEnrollmentRequired = false
+                if !auth.biometricsEnabled { auth.shouldPromptTouchID = true }
             }
             .fontWeight(.semibold).foregroundColor(.white)
             .padding().frame(maxWidth: 240)

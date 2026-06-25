@@ -14,6 +14,10 @@ struct ContentView: View {
                 MFAPromptView()
             } else if auth.isSignedIn && !auth.biometricLocked {
                 mainApp
+                    .sheet(isPresented: $auth.shouldPromptTouchID) {
+                        TouchIDEnrollPrompt(isPresented: $auth.shouldPromptTouchID)
+                            .environmentObject(auth)
+                    }
             } else {
                 LoginView()  // handles both fresh login and biometric unlock
             }

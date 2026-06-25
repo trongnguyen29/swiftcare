@@ -3,13 +3,15 @@ import SwiftUI
 struct LoginView: View {
     @EnvironmentObject var auth: AuthService
 
-    @State private var isSignUp    = false
-    @State private var email       = ""
-    @State private var password    = ""
-    @State private var fullName    = ""
-    @State private var isLoading   = false
+    @State private var isSignUp          = false
+    @State private var email             = ""
+    @State private var password          = ""
+    @State private var fullName          = ""
+    @State private var isLoading         = false
     @State private var errorMessage: String?
     @State private var successMessage: String?
+    @State private var touchIDAvailable    = true
+    @State private var showTouchIDPrompt   = false
     @FocusState private var focused: Field?
 
     enum Field { case fullName, email, password }
@@ -170,13 +172,19 @@ struct LoginView: View {
                             }
                             .disabled(!canSubmit || isLoading)
 
-                            // Biometric sign-in (shown when previously logged in with biometrics enabled)
-                            if auth.biometricLocked || auth.biometricsEnabled {
-                                Button(action: { Task { await auth.unlockWithBiometrics() } }) {
-                                    HStack(spacing: 8) {
+                            // Touch ID alternative
+                            if touchIDAvailable && !isSignUp {
+                                HStack {
+                                    VStack { Divider() }
+                                    Text("or").font(.caption).foregroundColor(.secondary).fixedSize()
+                                    VStack { Divider() }
+                                }
+
+                                Button(action: { Task { await signInWithBiometrics() } }) {
+                                    HStack(spacing: 10) {
                                         Image(systemName: "touchid")
-                                            .font(.system(size: 18))
-                                        Text("Sign in with \(auth.biometryType)")
+                                            .font(.system(size: 20))
+                                        Text("Sign in with Touch ID")
                                             .fontWeight(.semibold)
                                     }
                                     .foregroundColor(navy)
@@ -184,14 +192,8 @@ struct LoginView: View {
                                     .padding()
                                     .background(navy.opacity(0.08))
                                     .cornerRadius(10)
+                                    .overlay(RoundedRectangle(cornerRadius: 10).stroke(navy.opacity(0.2), lineWidth: 1))
                                 }
-
-                                HStack {
-                                    Divider()
-                                    Text("or").font(.caption).foregroundColor(.secondary)
-                                    Divider()
-                                }
-                                .frame(height: 16)
                             }
 
                         // Toggle sign in / sign up
@@ -227,6 +229,10 @@ struct LoginView: View {
         .ignoresSafeArea()
         .task {
             if auth.biometricLocked { await auth.unlockWithBiometrics() }
+        }
+        .sheet(isPresented: $showTouchIDPrompt) {
+            TouchIDEnrollPrompt(isPresented: $showTouchIDPrompt)
+                .environmentObject(auth)
         }
     }
 
@@ -296,6 +302,13 @@ struct LoginView: View {
                     )
             )
             .animation(.easeInOut(duration: 0.15), value: focused)
+        }
+    }
+
+    private func signInWithBiometrics() async {
+        await auth.unlockWithBiometrics()
+        if auth.session == nil {
+            errorMessage = "No saved account found. Please sign in with your password first."
         }
     }
 

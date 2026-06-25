@@ -91,13 +91,12 @@ struct MFAVerifyView: View {
         do {
             challengeId = try await auth.challengeMFA(factorId: factor.id)
         } catch {
-            let msg = error.localizedDescription.lowercased()
-            if msg.contains("factor") && msg.contains("not found") {
-                // Stale factor in Keychain — clear it and show enrollment
-                auth.clearStoredMFAFactor()
-                await MainActor.run { auth.pendingMFA = nil; auth.mfaEnrollmentRequired = true }
-            } else {
-                errorMessage = error.localizedDescription
+            // Stale or invalid factor — clear and show enrollment prompt
+            auth.clearStoredMFAFactor()
+            await MainActor.run {
+                auth.pendingMFA = nil
+                auth.isMFAEnrolled = false
+                auth.mfaEnrollmentRequired = true
             }
         }
     }
