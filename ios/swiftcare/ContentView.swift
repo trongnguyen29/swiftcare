@@ -8,6 +8,12 @@ struct ContentView: View {
         Group {
             if auth.isLoading {
                 ProgressView("Loading…")
+            } else if auth.biometricLocked {
+                BiometricLockView()
+            } else if let factor = auth.pendingMFA {
+                MFAVerifyView(factor: factor)
+            } else if auth.mfaEnrollmentRequired {
+                MFAPromptView()
             } else if auth.isSignedIn {
                 mainApp
             } else {

@@ -47,6 +47,7 @@ struct PatientListView: View {
     }
     
     @EnvironmentObject var auth: AuthService
+    @State private var showMFAEnroll = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -120,10 +121,55 @@ struct PatientListView: View {
                 .listStyle(PlainListStyle())
             }
         }
-        .task {
-            await loadPatients()
+        .task { await loadPatients() }
+        .sheet(isPresented: $showMFAEnroll) {
+            MFAEnrollView().environmentObject(auth)
+        }
+        .safeAreaInset(edge: .bottom) {
+            securityFooter
         }
     }
+
+    private var securityFooter: some View {
+        VStack(spacing: 0) {
+            Divider()
+            VStack(spacing: 8) {
+                if auth.biometricsAvailable {
+                    Toggle(isOn: Binding(
+                        get: { auth.biometricsEnabled },
+                        set: { _ in
+                            Task {
+                                if auth.biometricsEnabled { auth.disableBiometrics() }
+                                else { await auth.enableBiometrics() }
+                            }
+                        }
+                    )) {
+                        Label(auth.biometryType, systemImage: auth.biometryType == "Face ID" ? "faceid" : "touchid")
+                            .font(.subheadline)
+                    }
+                    .tint(.brand)
+                }
+
+                if auth.isMFAEnrolled {
+                    Label("2FA Active", systemImage: "checkmark.shield.fill")
+                        .font(.subheadline)
+                        .foregroundColor(.green)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                } else {
+                    Button(action: { showMFAEnroll = true }) {
+                        Label("Set up 2FA", systemImage: "lock.shield")
+                            .font(.subheadline)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    .foregroundColor(.brand)
+                }
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 10)
+            .background(Color(UIColor.systemGroupedBackground))
+        }
+    }
+
     
     func loadPatients() async {
         isLoading = true

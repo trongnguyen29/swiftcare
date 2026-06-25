@@ -3,13 +3,16 @@ import SwiftUI
 struct LoginView: View {
     @EnvironmentObject var auth: AuthService
 
+    @State private var isSignUp    = false
     @State private var email       = ""
     @State private var password    = ""
+    @State private var fullName    = ""
     @State private var isLoading   = false
     @State private var errorMessage: String?
+    @State private var successMessage: String?
     @FocusState private var focused: Field?
 
-    enum Field { case email, password }
+    enum Field { case fullName, email, password }
 
     private let navy      = Color(red: 0.52, green: 0.08, blue: 0.22)   // deep burgundy
     private let navyLight = Color(red: 0.68, green: 0.18, blue: 0.35)  // rose burgundy
@@ -83,15 +86,29 @@ struct LoginView: View {
 
                         VStack(alignment: .leading, spacing: 32) {
 
+                            // Header
                             VStack(alignment: .leading, spacing: 6) {
-                                Text("Welcome back")
+                                Text(isSignUp ? "Create account" : "Welcome back")
                                     .font(.system(size: 28, weight: .bold))
-                                Text("Sign in to your clinical workspace")
+                                    .animation(.none, value: isSignUp)
+                                Text(isSignUp ? "Register your clinical workspace" : "Sign in to your clinical workspace")
                                     .font(.subheadline)
                                     .foregroundColor(.secondary)
                             }
 
+                            // Fields
                             VStack(spacing: 18) {
+                                if isSignUp {
+                                    inputField(
+                                        label: "Full name",
+                                        placeholder: "Dr. Marcus Webb",
+                                        text: $fullName,
+                                        icon: "person",
+                                        field: .fullName,
+                                        isSecure: false
+                                    )
+                                }
+
                                 inputField(
                                     label: "Email address",
                                     placeholder: "webb@cnh.com",
@@ -119,9 +136,20 @@ struct LoginView: View {
                                     .foregroundColor(.red)
                                     .frame(maxWidth: .infinity, alignment: .leading)
                                 }
+
+                                if let success = successMessage {
+                                    HStack(spacing: 6) {
+                                        Image(systemName: "checkmark.circle.fill")
+                                        Text(success)
+                                    }
+                                    .font(.caption)
+                                    .foregroundColor(.green)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                }
                             }
 
-                            Button(action: { Task { await signIn() } }) {
+                            // Primary button
+                            Button(action: { Task { isSignUp ? await signUp() : await signIn() } }) {
                                 ZStack {
                                     RoundedRectangle(cornerRadius: 12)
                                         .fill(canSubmit ? navy : Color.gray.opacity(0.3))
@@ -130,7 +158,7 @@ struct LoginView: View {
                                             .progressViewStyle(CircularProgressViewStyle(tint: .white))
                                     } else {
                                         HStack(spacing: 8) {
-                                            Text("Sign In")
+                                            Text(isSignUp ? "Create Account" : "Sign In")
                                                 .fontWeight(.semibold)
                                             Image(systemName: "arrow.right")
                                                 .font(.system(size: 14, weight: .semibold))
@@ -141,6 +169,22 @@ struct LoginView: View {
                                 .frame(height: 52)
                             }
                             .disabled(!canSubmit || isLoading)
+
+                            // Toggle sign in / sign up
+                            HStack(spacing: 4) {
+                                Text(isSignUp ? "Already have an account?" : "Don't have an account?")
+                                    .foregroundColor(.secondary)
+                                Button(isSignUp ? "Sign In" : "Sign Up") {
+                                    withAnimation(.easeInOut(duration: 0.2)) {
+                                        isSignUp.toggle()
+                                        errorMessage = nil
+                                        successMessage = nil
+                                    }
+                                }
+                                .foregroundColor(navy)
+                                .fontWeight(.semibold)
+                            }
+                            .font(.subheadline)
                         }
                         .frame(maxWidth: 360)
 
@@ -159,7 +203,9 @@ struct LoginView: View {
         .ignoresSafeArea()
     }
 
-    private var canSubmit: Bool { !email.isEmpty && !password.isEmpty }
+    private var canSubmit: Bool {
+        !email.isEmpty && !password.isEmpty && (!isSignUp || !fullName.isEmpty)
+    }
 
     @ViewBuilder
     private func featurePill(icon: String, text: String) -> some View {
@@ -229,9 +275,28 @@ struct LoginView: View {
     private func signIn() async {
         isLoading = true
         errorMessage = nil
+        successMessage = nil
         defer { isLoading = false }
         do {
             try await auth.signIn(email: email, password: password)
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    private func signUp() async {
+        isLoading = true
+        errorMessage = nil
+        successMessage = nil
+        defer { isLoading = false }
+        do {
+            try await auth.signUp(email: email, password: password, fullName: fullName)
+        } catch AuthService.AuthError.emailAlreadyExists {
+            withAnimation { isSignUp = false }
+            errorMessage = "An account with this email already exists. Please sign in."
+        } catch let AuthService.AuthError.serverError(msg) where msg.contains("confirm") {
+            successMessage = msg
+            withAnimation { isSignUp = false }
         } catch {
             errorMessage = error.localizedDescription
         }
