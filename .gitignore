@@ -2,6 +2,14 @@
 ios/swiftcare.xcodeproj/project.xcworkspace/xcuserdata/trongnguyen.xcuserdatad/UserInterfaceState.xcuserstate
 ios/swiftcare.xcodeproj/project.xcworkspace/xcuserdata/trongnguyen.xcuserdatad/UserInterfaceState.xcuserstate
 
+# Node
+node_modules/
+
 # Chrome extension
 chromeextension/node_modules/
 chromeextension/dist/
+
+# Build outputs
+dist/
+build/
+.vite/

@@ -1,0 +1,107 @@
+.how-it-works {
+  background: hsl(222, 42%, 9%);
+  position: relative;
+  overflow: hidden;
+}
+
+.how-it-works__glow {
+  position: absolute;
+  width: 800px; height: 300px;
+  background: radial-gradient(ellipse, hsl(240,65%,60%,0.07) 0%, transparent 70%);
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+
+.how-steps {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-md);
+  position: relative;
+  margin-bottom: var(--space-xl);
+}
+
+/* Connector */
+.how-step {
+  position: relative;
+}
+
+.how-step__connector {
+  position: absolute;
+  top: 30px;
+  left: calc(100% + 12px);
+  width: calc(100% - 24px);
+  height: 1px;
+  background: linear-gradient(to right, var(--teal), var(--indigo));
+  opacity: 0.3;
+  z-index: 0;
+}
+
+/* Step bubble */
+.how-step__bubble {
+  width: 56px; height: 56px;
+  border-radius: 50%;
+  border: 1.5px solid;
+  display: flex; align-items: center; justify-content: center;
+  margin-bottom: var(--space-md);
+  background: hsl(222, 42%, 9%);
+  position: relative;
+  z-index: 1;
+}
+
+.how-step__num {
+  font-family: var(--font-heading);
+  font-size: 1rem;
+  font-weight: 800;
+}
+
+.how-step__card {
+  background: var(--grad-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-lg);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  height: 100%;
+  transition: all 0.28s var(--ease-out);
+}
+
+.how-step__card:hover {
+  border-color: var(--border-glow);
+  box-shadow: var(--shadow-glow);
+  transform: translateY(-4px);
+}
+
+.how-step__icon-wrap {
+  width: 52px; height: 52px;
+  border-radius: 14px;
+  display: flex; align-items: center; justify-content: center;
+}
+
+.how-step__title { color: var(--text-primary); }
+
+.how-step__desc {
+  font-size: 0.96rem;
+  line-height: 1.65;
+  flex: 1;
+}
+
+.how-step__detail {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  padding-top: var(--space-sm);
+  border-top: 1px solid var(--border);
+}
+
+.how-cta {
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+@media (max-width: 800px) {
+  .how-steps { grid-template-columns: 1fr; }
+  .how-step__connector { display: none; }
+}
