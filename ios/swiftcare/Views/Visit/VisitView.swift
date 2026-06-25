@@ -133,192 +133,6 @@ struct VisitView: View {
 
     var recorderCard: some View {
         CardView(title: "Visit Recorder", icon: "mic.fill") {
-            VStack(spacing: 16) {
-
-                // ── Note Format + Disease Focus selectors ──────────────────
-                if showTemplateSelectors {
-                    VStack(alignment: .leading, spacing: 10) {
-
-                        // Note Format row
-                        VStack(alignment: .leading, spacing: 5) {
-                            HStack {
-                                Label("Note Format", systemImage: "doc.text")
-                                    .font(.caption.bold())
-                                    .foregroundStyle(.secondary)
-                                Spacer()
-                                Button {
-                                    showNoteFormatPicker = true
-                                } label: {
-                                    HStack(spacing: 2) {
-                                        Text("More")
-                                        Image(systemName: "chevron.right")
-                                    }
-                                    .font(.caption)
-                                    .foregroundStyle(Color.brand)
-                                }
-                            }
-                            ScrollView(.horizontal, showsIndicators: false) {
-                                HStack(spacing: 6) {
-                                    ForEach(TranscriptionTemplate.noteFormatTemplates) { fmt in
-                                        InlineChip(
-                                            label: fmt.name,
-                                            icon: fmt.icon,
-                                            isSelected: selectedNoteFormat.id == fmt.id,
-                                            accent: .brand
-                                        ) {
-                                            selectedNoteFormat = fmt
-                                            TemplateStore.shared.selectedNoteFormat = fmt
-                                        }
-                                    }
-                                }
-                                .padding(.vertical, 2)
-                            }
-                        }
-
-                        Divider()
-
-                        // Disease Focus row
-                        VStack(alignment: .leading, spacing: 5) {
-                            HStack {
-                                Label("Disease Focus", systemImage: "cross.case")
-                                    .font(.caption.bold())
-                                    .foregroundStyle(.secondary)
-                                Spacer()
-                                Button {
-                                    showDiseasePicker = true
-                                } label: {
-                                    HStack(spacing: 2) {
-                                        Text("More")
-                                        Image(systemName: "chevron.right")
-                                    }
-                                    .font(.caption)
-                                    .foregroundStyle(Color.brand)
-                                }
-                            }
-                            ScrollView(.horizontal, showsIndicators: false) {
-                                HStack(spacing: 6) {
-                                    // "None" chip — clears disease focus
-                                    InlineChip(
-                                        label: "None",
-                                        icon: "circle.slash",
-                                        isSelected: selectedDiseaseTemplate == nil,
-                                        accent: .brand
-                                    ) {
-                                        selectedDiseaseTemplate = nil
-                                        TemplateStore.shared.selectedDiseaseTemplate = nil
-                                    }
-                                    ForEach(TranscriptionTemplate.diseaseTemplates) { disease in
-                                        InlineChip(
-                                            label: disease.name,
-                                            icon: disease.icon,
-                                            isSelected: selectedDiseaseTemplate?.id == disease.id,
-                                            accent: .brand
-                                        ) {
-                                            selectedDiseaseTemplate = disease
-                                            TemplateStore.shared.selectedDiseaseTemplate = disease
-                                        }
-                                    }
-                                }
-                                .padding(.vertical, 2)
-                            }
-                        }
-
-                        Divider()
-
-                        // Language row
-                        VStack(alignment: .leading, spacing: 5) {
-                            Label("Language", systemImage: "globe")
-                                .font(.caption.bold())
-                                .foregroundStyle(.secondary)
-                            ScrollView(.horizontal, showsIndicators: false) {
-                                HStack(spacing: 6) {
-                                    ForEach(TranscriptionLanguage.all) { lang in
-                                        InlineChip(
-                                            label: "\(lang.flag) \(lang.name)",
-                                            icon: "",
-                                            isSelected: selectedLanguage.id == lang.id,
-                                            accent: .brand
-                                        ) {
-                                            selectedLanguage = lang
-                                            TranscriptionLanguage.persisted = lang
-                                        }
-                                    }
-                                }
-                                .padding(.vertical, 2)
-                            }
-                        }
-                    }
-                    .padding(12)
-                    .background(Color(UIColor.secondarySystemBackground))
-                    .clipShape(RoundedRectangle(cornerRadius: 12))
-                }
-
-                // ── Status badge ───────────────────────────────────────────
-                HStack(spacing: 8) {
-                    if case .recording = recorderState {
-                        Circle().fill(Color.red).frame(width: 8, height: 8)
-                            .opacity(Double((Int(duration) % 2 == 0) ? 1 : 0.3))
-                            .animation(.easeInOut(duration: 0.5).repeatForever(), value: duration)
-                    }
-                    Text(recorderState.label)
-                        .font(.headline)
-                        .foregroundColor(stateLabelColor)
-                    if case .recording = recorderState {
-                        Text(timeString(from: duration))
-                            .font(.headline.monospacedDigit())
-                            .foregroundColor(.red)
-                    }
-                }
-
-                // Big time display
-                if case .recording = recorderState {
-                    Text(timeString(from: duration))
-                        .font(.system(size: 52, weight: .thin, design: .monospaced))
-                        .foregroundColor(.red)
-                }
-
-                // Controls
-                HStack(spacing: 24) {
-                    switch recorderState {
-                    case .idle, .error:
-                        Button(action: startRecording) {
-                            Circle().fill(Color.brand)
-                                .frame(width: 60, height: 60)
-                                .overlay(Image(systemName: "mic.fill").font(.title2).foregroundColor(.white))
-                        }
-                        .buttonStyle(.plain)
-
-                    case .recording:
-                        Button(action: stopAndTranscribe) {
-                            Circle().fill(Color.red)
-                                .frame(width: 60, height: 60)
-                                .overlay(Image(systemName: "stop.fill").font(.title2).foregroundColor(.white))
-                        }
-                        .buttonStyle(.plain)
-
-                    case .transcribing:
-                        ProgressView().scaleEffect(1.5)
-                            .frame(width: 60, height: 60)
-
-                    case .done:
-                        Button("New Recording") {
-                            withAnimation { recorderState = .idle; duration = 0; transcript = ""; clinicalNote = ""; saved = false; noteError = nil }
-                        }
-                        .font(.headline)
-                        .padding(.horizontal, 20).padding(.vertical, 10)
-                        .background(Color.brandLight)
-                        .foregroundColor(.brand).cornerRadius(10)
-                    }
-                }
-
-                // Error
-                if case let .error(msg) = recorderState {
-                    Text("⚠ \(msg)").font(.caption).foregroundColor(.red).multilineTextAlignment(.center)
-                }
-
-                Text("Tap mic to start recording a visit. Audio is transcribed locally.")
-                    .font(.caption2).foregroundColor(.secondary).multilineTextAlignment(.center)
-                    .padding(.horizontal)
             if starting {
                 VStack(spacing: 12) {
                     ProgressView().scaleEffect(1.2)
@@ -355,7 +169,7 @@ struct VisitView: View {
                 switch recorderState {
                 case .idle, .error:
                     Button(action: { Task { await startIfPermitted() } }) {
-                        Circle().fill(Color.teal).frame(width: 60, height: 60)
+                        Circle().fill(Color.brand).frame(width: 60, height: 60)
                             .overlay(Image(systemName: "mic.fill").font(.title2).foregroundColor(.white))
                     }.buttonStyle(.plain)
                 case .recording:
@@ -389,14 +203,14 @@ struct VisitView: View {
                     Spacer()
                     Button { showNoteFormatPicker = true } label: {
                         HStack(spacing: 2) { Text("More"); Image(systemName: "chevron.right") }
-                            .font(.caption).foregroundStyle(.teal)
+                            .font(.caption).foregroundStyle(Color.brand)
                     }
                 }
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 6) {
                         ForEach(TranscriptionTemplate.noteFormatTemplates) { fmt in
                             InlineChip(label: fmt.name, icon: fmt.icon,
-                                       isSelected: selectedNoteFormat.id == fmt.id, accent: .teal) {
+                                       isSelected: selectedNoteFormat.id == fmt.id, accent: .brand) {
                                 selectedNoteFormat = fmt
                                 TemplateStore.shared.selectedNoteFormat = fmt
                             }
@@ -412,19 +226,19 @@ struct VisitView: View {
                     Spacer()
                     Button { showDiseasePicker = true } label: {
                         HStack(spacing: 2) { Text("More"); Image(systemName: "chevron.right") }
-                            .font(.caption).foregroundStyle(.indigo)
+                            .font(.caption).foregroundStyle(Color.brandRose)
                     }
                 }
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 6) {
                         InlineChip(label: "None", icon: "circle.slash",
-                                   isSelected: selectedDiseaseTemplate == nil, accent: .indigo) {
+                                   isSelected: selectedDiseaseTemplate == nil, accent: .brandRose) {
                             selectedDiseaseTemplate = nil
                             TemplateStore.shared.selectedDiseaseTemplate = nil
                         }
                         ForEach(TranscriptionTemplate.diseaseTemplates) { disease in
                             InlineChip(label: disease.name, icon: disease.icon,
-                                       isSelected: selectedDiseaseTemplate?.id == disease.id, accent: .indigo) {
+                                       isSelected: selectedDiseaseTemplate?.id == disease.id, accent: .brandRose) {
                                 selectedDiseaseTemplate = disease
                                 TemplateStore.shared.selectedDiseaseTemplate = disease
                             }
@@ -440,7 +254,7 @@ struct VisitView: View {
                     HStack(spacing: 6) {
                         ForEach(TranscriptionLanguage.all) { lang in
                             InlineChip(label: "\(lang.flag) \(lang.name)", icon: "",
-                                       isSelected: selectedLanguage.id == lang.id, accent: .teal) {
+                                       isSelected: selectedLanguage.id == lang.id, accent: .brand) {
                                 selectedLanguage = lang
                                 TranscriptionLanguage.persisted = lang
                             }
@@ -484,35 +298,11 @@ struct VisitView: View {
                         Label("Assigned to \(name)", systemImage: "checkmark.circle.fill")
                             .font(.caption.weight(.semibold)).foregroundColor(.green)
                     } else {
-                        VStack(spacing: 12) {
-                            ForEach(history) { note in
-                                VStack(alignment: .leading, spacing: 4) {
-                                    HStack(spacing: 6) {
-                                        Text(ISO8601DateFormatter().date(from: note.createdAt).map { $0.formatted(.dateTime) } ?? note.createdAt)
-                                            .font(.caption.bold()).foregroundColor(.secondary)
-                                        if let tName = note.templateName {
-                                            Text(tName)
-                                                .font(.system(size: 9, weight: .semibold))
-                                                .padding(.horizontal, 5).padding(.vertical, 2)
-                                                .background(Color.brandBlush)
-                                                .foregroundColor(.brand)
-                                                .clipShape(Capsule())
-                                        }
-                                    }
-                                    Text(note.transcript).font(.caption).foregroundColor(.secondary).lineLimit(3)
-                                    if !note.notes.isEmpty {
-                                        Text(note.notes).font(.caption).foregroundColor(.primary).lineLimit(4)
-                                    }
-                                }
-                                .padding()
-                                .background(Color(UIColor.systemBackground))
-                                .cornerRadius(8)
-                            }
                         Button { showAssignSheet = true } label: {
                             Label("Assign to Patient", systemImage: "person.badge.plus")
                                 .font(.caption.weight(.semibold))
                                 .padding(.horizontal, 9).padding(.vertical, 4)
-                                .background(Color.teal.opacity(0.12)).foregroundColor(.teal)
+                                .background(Color.brandBlush).foregroundColor(.brand)
                                 .clipShape(Capsule())
                         }
                         .buttonStyle(.plain)
@@ -525,7 +315,7 @@ struct VisitView: View {
                     Label("New Recording", systemImage: "mic.fill")
                         .font(.subheadline.weight(.semibold))
                         .padding(.horizontal, 14).padding(.vertical, 8)
-                        .background(Color.teal.opacity(0.12)).foregroundColor(.teal)
+                        .background(Color.brandBlush).foregroundColor(.brand)
                         .clipShape(Capsule())
                 }
                 .buttonStyle(.plain)
@@ -539,7 +329,7 @@ struct VisitView: View {
                 VStack(alignment: .leading, spacing: 14) {
                     HStack(spacing: 8) {
                         Label("SOAP Note", systemImage: "doc.text")
-                            .font(.caption.bold()).foregroundStyle(.teal)
+                            .font(.caption.bold()).foregroundStyle(Color.brand)
                         if !soap.isEmpty {
                             Text("AI DRAFT").font(.system(size: 9, weight: .bold))
                                 .padding(.horizontal, 4).padding(.vertical, 1)
@@ -645,100 +435,8 @@ struct VisitView: View {
                       systemImage: editingNote ? "checkmark" : "pencil")
                     .font(.system(size: 12, weight: .semibold))
             }
-            .foregroundColor(.teal)
+            .foregroundColor(.brand)
 
-                // ── Active selection indicator ─────────────────────────────
-                HStack(spacing: 6) {
-                    Label(selectedNoteFormat.name, systemImage: selectedNoteFormat.icon)
-                        .font(.caption.bold())
-                        .foregroundStyle(Color.brand)
-                    if let disease = selectedDiseaseTemplate {
-                        Text("·").font(.caption).foregroundStyle(.secondary)
-                        Label(disease.name, systemImage: disease.icon)
-                            .font(.caption.bold())
-                            .foregroundStyle(Color.brand)
-                    }
-                }
-
-                // ── Actions ────────────────────────────────────────────────
-                HStack(spacing: 10) {
-                    Button {
-                        Task { await generateNote() }
-                    } label: {
-                        Label(noteGenerating ? "Generating…" : "✦ Generate Note", systemImage: "")
-                            .font(.system(size: 12, weight: .semibold))
-                    }
-                    .disabled(noteGenerating || transcript.isEmpty)
-                    .padding(.horizontal, 8).padding(.vertical, 4)
-                    .background(Color.brandBlush).cornerRadius(6).foregroundColor(.brandRose)
-
-                    Button(action: saveNote) {
-                        Label("Save Note", systemImage: "square.and.arrow.down")
-                            .font(.system(size: 12, weight: .semibold))
-                    }
-                    .disabled(transcript.isEmpty)
-                    .padding(.horizontal, 8).padding(.vertical, 4)
-                    .background(Color.brandLight).cornerRadius(6).foregroundColor(.brand)
-
-                    if saved {
-                        Label("Saved", systemImage: "checkmark.circle.fill")
-                            .font(.system(size: 12, weight: .semibold))
-                            .foregroundColor(.green)
-                    }
-
-                    Spacer()
-
-                    Button {
-                        UIPasteboard.general.string = clinicalNote; copiedNote = true
-                    } label: {
-                        Label(copiedNote ? "Copied!" : "Copy", systemImage: copiedNote ? "checkmark" : "doc.on.doc")
-                            .font(.system(size: 12))
-                    }
-                    .foregroundColor(.secondary)
-                    .disabled(clinicalNote.isEmpty)
-                    .onChange(of: copiedNote) { val in
-                        if val { DispatchQueue.main.asyncAfter(deadline: .now() + 2) { copiedNote = false } }
-                    }
-                }
-
-                if let error = noteError {
-                    Text("⚠ \(error)").font(.caption).foregroundColor(.red)
-                }
-
-                if !clinicalNote.isEmpty {
-                    HStack(spacing: 4) {
-                        Text("Clinical Note")
-                            .font(.caption.bold()).foregroundColor(.secondary)
-                        Text("AI DRAFT")
-                            .font(.system(size: 9, weight: .bold))
-                            .padding(.horizontal, 4).padding(.vertical, 1)
-                            .background(Color.brand).foregroundColor(.white).cornerRadius(3)
-                    }
-                }
-
-                TextEditor(text: $clinicalNote)
-                    .font(.body)
-                    .frame(minHeight: clinicalNote.isEmpty ? 60 : 200)
-                    .padding(8)
-                    .background(Color(UIColor.systemBackground))
-                    .cornerRadius(8)
-                    .opacity(noteGenerating ? 0.5 : 1)
-                    .overlay(
-                        Group {
-                            if clinicalNote.isEmpty && !noteGenerating {
-                                Text("Tap ✦ Generate Note for an AI-drafted \(selectedNoteFormat.name) note, or type manually…")
-                                    .font(.body).foregroundColor(.secondary).padding(12)
-                                    .allowsHitTesting(false)
-                            }
-                        },
-                        alignment: .topLeading
-                    )
-                    .onChange(of: clinicalNote) { _ in saved = false }
-
-                if !clinicalNote.isEmpty {
-                    Text("AI-drafted — review and edit before saving. Not a substitute for physician judgment.")
-                        .font(.caption2).foregroundColor(.secondary)
-                }
             Spacer()
 
             Button { UIPasteboard.general.string = clinicalNote; copiedNote = true } label: {

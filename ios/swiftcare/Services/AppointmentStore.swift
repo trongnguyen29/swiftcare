@@ -47,24 +47,25 @@ final class AppointmentStore: ObservableObject {
         reason: String,
         doctorName: String
     ) async throws -> Appointment {
-        let phoneNumber = PatientContactStore.shared.phone(forPtnum: patient.mrn, fallback: patient.phoneNumber) ?? patient.phoneNumber
-        let dateFormatter = ISO8601DateFormatter()
-        dateFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        let iso = ISO8601DateFormatter()
+        iso.formatOptions = [.withInternetDateTime]
+        let endDate = date.addingTimeInterval(TimeInterval(durationMinutes * 60))
 
-        let appointment = try await APIService.shared.createAppointment(
-            APIService.NewAppointment(
-                ptnum: patient.mrn,
-                patient_name: patient.displayName,
-                appointment_date: dateFormatter.string(from: date),
-                duration_minutes: durationMinutes,
-                appointment_type: type.rawValue,
-                status: AppointmentStatus.scheduled.rawValue,
-                reason: reason,
-                doctor_name: doctorName,
-                phone_number: phoneNumber,
-                is_reminder_sent: false
-            )
-        )
+        let resource: [String: Any] = [
+            "resourceType": "Appointment",
+            "status": "booked",
+            "serviceType": [["coding": [["display": type.rawValue]]]],
+            "start": iso.string(from: date),
+            "end": iso.string(from: endDate),
+            "minutesDuration": durationMinutes,
+            "participant": [
+                ["actor": ["reference": "Patient/\(patient.mrn)", "display": patient.displayName], "status": "accepted"],
+                ["actor": ["reference": "Practitioner/unknown", "display": doctorName], "status": "accepted"]
+            ],
+            "reasonCode": [["text": reason]]
+        ]
+
+        let appointment = try await APIService.shared.createAppointment(resource, patientId: patient.mrn)
 
         appointments.append(appointment)
         patientsByAppointmentID[appointment.id] = patient

@@ -43,26 +43,6 @@ struct ScheduleAppointmentView: View {
     private var canSchedule: Bool { selectedPatient != nil }
 
     var body: some View {
-        VStack(spacing: 0) {
-            // Header
-            HStack {
-                Image(systemName: "calendar.badge.plus")
-                    .foregroundColor(Color.brand)
-                    .font(.title2)
-                Text("Schedule Appointment")
-                    .font(.title2)
-                    .fontWeight(.bold)
-                Spacer()
-                Button(action: { dismiss() }) {
-                    Image(systemName: "xmark")
-                        .foregroundColor(.secondary)
-                        .font(.headline)
-                }
-            }
-            .padding()
-            
-            Divider()
-            
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
@@ -172,34 +152,6 @@ struct ScheduleAppointmentView: View {
         }
     }
 
-    private func scheduleAppointment() async {
-        isSaving = true
-        defer { isSaving = false }
-
-        let iso = ISO8601DateFormatter()
-        iso.formatOptions = [.withInternetDateTime]
-        let start = combineDateAndTime()
-        let end = start.addingTimeInterval(TimeInterval(parseDuration() * 60))
-
-        let resource: [String: Any] = [
-            "resourceType": "Appointment",
-            "status": "booked",
-            "serviceType": [["coding": [["display": visitType.rawValue]]]],
-            "start": iso.string(from: start),
-            "end": iso.string(from: end),
-            "minutesDuration": parseDuration(),
-            "participant": [
-                ["actor": ["reference": "Patient/\(patient.ptnum)", "display": patient.displayName], "status": "accepted"],
-                ["actor": ["reference": "Practitioner/unknown", "display": provider], "status": "accepted"]
-            ],
-            "reasonCode": [["text": reason]]
-        ]
-
-        do {
-            _ = try await APIService.shared.createAppointment(resource, patientId: patient.ptnum)
-            dismiss()
-        } catch {
-            saveError = "Failed to schedule appointment. Please try again."
     // MARK: - Patient field
 
     private var patientField: some View {

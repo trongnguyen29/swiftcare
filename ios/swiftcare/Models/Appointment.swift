@@ -115,15 +115,14 @@ struct MockAppointmentPatient: Identifiable, Hashable {
 extension MockAppointmentPatient {
     var profilePatient: Patient {
         if let sourcePatient { return sourcePatient }
-        let name = displayName.split(separator: " ", maxSplits: 1).map(String.init)
-        let payload: [String: Any] = [
-            "ptnum": mrn, "label": 0,
-            "first_name": name.first ?? displayName,
-            "last_name": name.dropFirst().first ?? "",
-            "phone": phoneNumber,
-        ]
-        let data = try! JSONSerialization.data(withJSONObject: payload)
-        return try! JSONDecoder().decode(Patient.self, from: data)
+        let nameParts = displayName.split(separator: " ", maxSplits: 1).map(String.init)
+        let resource = FHIRPatientResource(
+            id: mrn,
+            name: [FHIRHumanName(use: "official", family: nameParts.last, given: nameParts.first.map { [$0] })],
+            telecom: [FHIRContactPoint(system: "phone", value: phoneNumber)],
+            gender: nil, birthDate: nil, address: nil, communication: nil, fhirExtensions: nil
+        )
+        return Patient(fromFHIR: FHIRPatientRow(fhir_id: mrn, resource: resource))
     }
 }
 
@@ -172,9 +171,5 @@ extension Patient {
             address: nil, communication: nil, fhirExtensions: nil
         )
         return Patient(fromFHIR: FHIRPatientRow(fhir_id: "MRN-847261", resource: resource))
-        let json = """
-        {"ptnum": "MRN-847261", "label": 0, "first_name": "Sarah", "last_name": "Chen"}
-        """
-        return try! JSONDecoder().decode(Patient.self, from: json.data(using: .utf8)!)
     }
 }

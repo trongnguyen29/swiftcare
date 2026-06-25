@@ -139,9 +139,6 @@ struct PatientAppointmentsView: View {
         isLoading = true
         defer { isLoading = false }
         appointments = (try? await APIService.shared.getAppointments(patientId: patient.ptnum)) ?? []
-        try? await Task.sleep(nanoseconds: 15_000_000_000)
-        if !Task.isCancelled { await loadAppointments() }
-        appointments = (try? await APIService.shared.getAppointments(ptnum: patient.ptnum)) ?? []
     }
 
     private func dateString(from date: Date) -> String {
@@ -179,8 +176,6 @@ struct MiniAppointmentCard: View {
                 .font(.caption)
                 .foregroundColor(.brand)
                 .padding(.top, 4)
-                HStack { Image(systemName: "checkmark.circle"); Text("Reminder sent") }
-                    .font(.caption).foregroundColor(.teal).padding(.top, 4)
             }
         }
         .padding()
@@ -251,37 +246,6 @@ struct CustomCalendarView: View {
                 }
             }
             
-            // Days grid (starting Tuesday)
-            LazyVGrid(columns: columns, spacing: 12) {
-                // Empty offset for Sunday and Monday
-                Text("").frame(height: 32)
-                Text("").frame(height: 32)
-                
-                ForEach(days, id: \.self) { day in
-                    let isSelected = day == 18
-                    let isToday = day == 17
-                    
-                    ZStack {
-                        if isSelected {
-                            Circle()
-                                .fill(Color.brand) // Navy
-                        } else if isToday {
-                            Circle()
-                                .stroke(Color.brand, lineWidth: 1.5)
-                        }
-                        
-                        VStack(spacing: 2) {
-                            Text("\(day)")
-                                .font(.system(size: 14))
-                                .fontWeight(isSelected ? .bold : .regular)
-                                .foregroundColor(isSelected ? .white : .primary)
-                            
-                            // Mock dots for events
-                            if [18, 19, 23, 25].contains(day) {
-                                Circle()
-                                    .fill(isSelected ? .white : .brand)
-                                    .frame(width: 4, height: 4)
-
             LazyVGrid(columns: columns, spacing: 10) {
                 ForEach(Array(monthDays.indices), id: \.self) { index in
                     if let date = monthDays[index] {

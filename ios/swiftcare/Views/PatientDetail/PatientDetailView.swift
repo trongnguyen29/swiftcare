@@ -23,10 +23,7 @@ struct PatientDetailView: View {
     @State private var detailedPatient: Patient? = nil
     @State private var activeTab: PatientTab = .overview
     @State private var showAIChat = false
-    @State private var startRecordingSignal = false
-
     private var displayPatient: Patient { detailedPatient ?? patient }
-    
     @State private var startRecordingSignal = 0
 
     var body: some View {

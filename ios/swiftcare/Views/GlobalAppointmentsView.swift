@@ -35,64 +35,6 @@ struct GlobalAppointmentsView: View {
                         calendarRail
                         agenda
                     }
-                    .frame(width: 320)
-                    
-                    // RIGHT COLUMN
-                    VStack(alignment: .leading, spacing: 16) {
-                        HStack {
-                            VStack(alignment: .leading) {
-                                Text("Upcoming Appointments")
-                                    .font(.title2)
-                                    .fontWeight(.bold)
-                                Text("\(filteredAppointments.count) scheduled across all patients")
-                                    .font(.subheadline)
-                                    .foregroundColor(.secondary)
-                            }
-                            
-                            Spacer()
-                            
-                            HStack(spacing: 12) {
-                                Button(action: {}) {
-                                    HStack {
-                                        Image(systemName: "message")
-                                        Text("Reminder Log")
-                                    }
-                                    .font(.subheadline.bold())
-                                    .padding(.horizontal, 16)
-                                    .padding(.vertical, 10)
-                                    .background(Color(UIColor.systemBackground))
-                                    .cornerRadius(8)
-                                    .overlay(
-                                        RoundedRectangle(cornerRadius: 8)
-                                            .stroke(Color(UIColor.separator), lineWidth: 1)
-                                    )
-                                    .overlay(
-                                        Circle()
-                                            .fill(Color.brand)
-                                            .frame(width: 20, height: 20)
-                                            .overlay(Text("1").font(.caption2.bold()).foregroundColor(.white))
-                                            .offset(x: 10, y: -10)
-                                        , alignment: .topTrailing
-                                    )
-                                }
-                                .buttonStyle(PlainButtonStyle())
-                                
-                                Button(action: { showingScheduleSheet = true }) {
-                                    HStack {
-                                        Image(systemName: "plus")
-                                        Text("Schedule Appointment")
-                                    }
-                                    .font(.subheadline.bold())
-                                    .foregroundColor(.white)
-                                    .padding(.horizontal, 16)
-                                    .padding(.vertical, 10)
-                                    .background(Color.brand)
-                                    .cornerRadius(8)
-                                }
-                                .buttonStyle(PlainButtonStyle())
-                            }
-                        }
-                        .padding(.bottom, 8)
                     VStack(alignment: .leading, spacing: 20) {
                         calendarRail
                         agenda

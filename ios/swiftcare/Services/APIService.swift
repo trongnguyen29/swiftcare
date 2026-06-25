@@ -5,7 +5,8 @@ class APIService {
 
     private let supabaseUrl = "https://zbnvigxkforwbmphghpg.supabase.co"
     private let supabaseKey = "sb_publishable_U3hegesGlIhrENKOreNbuQ_WIKcYrOL"
-    private let workerUrl  = "https://swiftcare.tnn-040.workers.dev"
+    let workerUrl  = "https://swiftcare.tnn-040.workers.dev"
+    private static let maxRetries = 5
 
     // MARK: - Helpers
 
@@ -110,57 +111,6 @@ class APIService {
 
     // MARK: - AI Summary
 
-    private let supabaseUrl = "https://ujqrxhhshxgqqjkblorh.supabase.co"
-    private let supabaseKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVqcXJ4aGhzaHhncXFqa2Jsb3JoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk4MDU3NjAsImV4cCI6MjA5NTM4MTc2MH0.t4CgUYE5oPLhocC2YtRF-WW6tMWu2Cvd0mYB_A1jWhk"
-    let workerUrl = "https://swiftcare.tnn-040.workers.dev"
-
-    private let patientTable      = "patient_summary"
-    private let summaryTable      = "patient_ai_summary"
-    private let appointmentsTable = "appointments"
-
-    private let cols = "ptnum,label,scc,first_name,last_name,age,administrative_sex,race,ethnicity,state,systolic_bp,diastolic_bp,heart_rate,bmi,total_cholesterol,ldl,hdl,triglycerides,hba1c,glucose,creatinine,egfr,hemoglobin,wbc,platelets,problems"
-
-    private static let maxRetries = 5
-
-    // MARK: - Supabase
-
-    func queryPatients(query: String = "", filter: String = "all") async throws -> [Patient] {
-        var urlComponents = URLComponents(string: "\(supabaseUrl)/rest/v1/\(patientTable)")!
-        var queryItems = [
-            URLQueryItem(name: "select", value: cols),
-            URLQueryItem(name: "order", value: "last_name.asc,first_name.asc"),
-            URLQueryItem(name: "limit", value: "150"),
-        ]
-        let trimmedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
-        if !trimmedQuery.isEmpty {
-            let safeQuery = trimmedQuery
-                .replacingOccurrences(of: ",", with: "")
-                .replacingOccurrences(of: "(", with: "")
-                .replacingOccurrences(of: ")", with: "")
-            queryItems.append(URLQueryItem(
-                name: "or",
-                value: "(ptnum.ilike.*\(safeQuery)*,first_name.ilike.*\(safeQuery)*,last_name.ilike.*\(safeQuery)*)"
-            ))
-        }
-        if filter == "positive" {
-            queryItems.append(URLQueryItem(name: "label", value: "eq.1"))
-        } else if filter == "control" {
-            queryItems.append(URLQueryItem(name: "label", value: "eq.0"))
-        }
-        urlComponents.queryItems = queryItems
-
-        var request = URLRequest(url: urlComponents.url!)
-        request.setValue(supabaseKey, forHTTPHeaderField: "apikey")
-        request.setValue("Bearer \(supabaseKey)", forHTTPHeaderField: "Authorization")
-        request.setValue("application/json", forHTTPHeaderField: "Accept")
-
-        let (data, response) = try await URLSession.shared.data(for: request)
-        guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
-            throw URLError(.badServerResponse)
-        }
-        return try JSONDecoder().decode([Patient].self, from: data)
-    }
-
     struct PatientSummaryRecord: Codable {
         let ai_summary: String?
         let ai_summary_hash: String?
@@ -174,21 +124,7 @@ class APIService {
             URLQueryItem(name: "limit",      value: "1"),
         ])
         let (data, response) = try await URLSession.shared.data(for: makeRequest(url))
-    func getPatientSummary(ptnum: String) async throws -> PatientSummaryRecord? {
-        var urlComponents = URLComponents(string: "\(supabaseUrl)/rest/v1/\(summaryTable)")!
-        urlComponents.queryItems = [
-            URLQueryItem(name: "select", value: "ai_summary,ai_summary_hash,ai_summary_at"),
-            URLQueryItem(name: "ptnum", value: "eq.\(ptnum)"),
-            URLQueryItem(name: "limit", value: "1"),
-        ]
-        var request = URLRequest(url: urlComponents.url!)
-        request.setValue(supabaseKey, forHTTPHeaderField: "apikey")
-        request.setValue("Bearer \(supabaseKey)", forHTTPHeaderField: "Authorization")
-        request.setValue("application/json", forHTTPHeaderField: "Accept")
-        let (data, response) = try await URLSession.shared.data(for: request)
-        guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
-            return nil
-        }
+        guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else { return nil }
         let records = try JSONDecoder().decode([PatientSummaryRecord].self, from: data)
         return records.first { $0.ai_summary != nil }
     }
@@ -205,22 +141,6 @@ class APIService {
             "ai_summary_at":    ISO8601DateFormatter().string(from: Date()),
         ])
         let (_, response) = try await URLSession.shared.data(for: req)
-    func savePatientSummary(ptnum: String, summary: String, hash: String) async throws {
-        let url = URL(string: "\(supabaseUrl)/rest/v1/\(summaryTable)")!
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue(supabaseKey, forHTTPHeaderField: "apikey")
-        request.setValue("Bearer \(supabaseKey)", forHTTPHeaderField: "Authorization")
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue("resolution=merge-duplicates,return=minimal", forHTTPHeaderField: "Prefer")
-        let body: [String: Any] = [
-            "ptnum": ptnum,
-            "ai_summary": summary,
-            "ai_summary_hash": hash,
-            "ai_summary_at": ISO8601DateFormatter().string(from: Date()),
-        ]
-        request.httpBody = try JSONSerialization.data(withJSONObject: body)
-        let (_, response) = try await URLSession.shared.data(for: request)
         guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
             throw URLError(.badServerResponse)
         }
@@ -281,59 +201,8 @@ class APIService {
             "resource":   resource,
         ])
         let (data, response) = try await URLSession.shared.data(for: req)
-    struct NewAppointment: Encodable {
-        let ptnum: String
-        let patient_name: String
-        let appointment_date: String
-        let duration_minutes: Int
-        let appointment_type: String
-        let status: String
-        let reason: String
-        let doctor_name: String
-        let phone_number: String
-        let is_reminder_sent: Bool
-    }
-
-    func getAllAppointments() async throws -> [Appointment] {
-        var urlComponents = URLComponents(string: "\(supabaseUrl)/rest/v1/\(appointmentsTable)")!
-        urlComponents.queryItems = [
-            URLQueryItem(name: "select", value: "*"),
-            URLQueryItem(name: "order", value: "appointment_date.asc"),
-        ]
-        let (data, response) = try await URLSession.shared.data(for: appointmentRequest(urlComponents))
         guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
-            throw appointmentError(data: data, response: response, action: "load appointments")
-        }
-        return try appointmentDecoder().decode([Appointment].self, from: data)
-    }
-
-    func getAppointments(ptnum: String) async throws -> [Appointment] {
-        var urlComponents = URLComponents(string: "\(supabaseUrl)/rest/v1/\(appointmentsTable)")!
-        urlComponents.queryItems = [
-            URLQueryItem(name: "select", value: "*"),
-            URLQueryItem(name: "ptnum", value: "eq.\(ptnum)"),
-            URLQueryItem(name: "order", value: "appointment_date.asc"),
-        ]
-        let (data, response) = try await URLSession.shared.data(for: appointmentRequest(urlComponents))
-        guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
-            throw appointmentError(data: data, response: response, action: "load appointments")
-        }
-        return try appointmentDecoder().decode([Appointment].self, from: data)
-    }
-
-    func createAppointment(_ appointment: NewAppointment) async throws -> Appointment {
-        let url = URL(string: "\(supabaseUrl)/rest/v1/\(appointmentsTable)")!
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue(supabaseKey, forHTTPHeaderField: "apikey")
-        request.setValue("Bearer \(supabaseKey)", forHTTPHeaderField: "Authorization")
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue("return=representation", forHTTPHeaderField: "Prefer")
-        request.httpBody = try JSONEncoder().encode(appointment)
-
-        let (data, response) = try await URLSession.shared.data(for: request)
-        guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
-            throw appointmentError(data: data, response: response, action: "save the appointment")
+            throw URLError(.badServerResponse)
         }
         let rows = try makeAppointmentDecoder().decode([FHIRAppointmentRow].self, from: data)
         guard let appt = rows.first.flatMap({ Appointment.fromFHIR($0) }) else {
@@ -347,38 +216,25 @@ class APIService {
         c.queryItems = [URLQueryItem(name: "fhir_id", value: "eq.\(id)")]
         var req = makeRequest(c.url!, method: "PATCH")
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        // Patch the status inside the jsonb resource column using jsonb_set
         req.httpBody = try JSONSerialization.data(withJSONObject: [
             "resource": ["status": status.rawValue.lowercased()]
         ])
         let (_, response) = try await URLSession.shared.data(for: req)
-        let appointments = try appointmentDecoder().decode([Appointment].self, from: data)
-        guard let created = appointments.first else { throw URLError(.cannotParseResponse) }
-        return created
-    }
-
-    func updateAppointmentStatus(id: String, status: AppointmentStatus) async throws {
-        var urlComponents = URLComponents(string: "\(supabaseUrl)/rest/v1/\(appointmentsTable)")!
-        urlComponents.queryItems = [URLQueryItem(name: "id", value: "eq.\(id)")]
-        var request = appointmentRequest(urlComponents, method: "PATCH")
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.httpBody = try JSONSerialization.data(withJSONObject: ["status": status.rawValue])
-        let (data, response) = try await URLSession.shared.data(for: request)
         guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
-            throw appointmentError(data: data, response: response, action: "update appointment status")
+            throw URLError(.badServerResponse)
         }
     }
 
     // MARK: - Cloudflare Workers
     func markReminderSent(forAppointmentID id: String) async throws {
-        var urlComponents = URLComponents(string: "\(supabaseUrl)/rest/v1/\(appointmentsTable)")!
-        urlComponents.queryItems = [URLQueryItem(name: "id", value: "eq.\(id)")]
-        var request = appointmentRequest(urlComponents, method: "PATCH")
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.httpBody = try JSONSerialization.data(withJSONObject: ["is_reminder_sent": true])
-        let (data, response) = try await URLSession.shared.data(for: request)
+        var c = URLComponents(string: "\(supabaseUrl)/rest/v1/fhir_appointment")!
+        c.queryItems = [URLQueryItem(name: "fhir_id", value: "eq.\(id)")]
+        var req = makeRequest(c.url!, method: "PATCH")
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.httpBody = try JSONSerialization.data(withJSONObject: ["resource": ["is_reminder_sent": true]])
+        let (_, response) = try await URLSession.shared.data(for: req)
         guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
-            throw appointmentError(data: data, response: response, action: "update the reminder")
+            throw URLError(.badServerResponse)
         }
     }
 
@@ -437,20 +293,6 @@ class APIService {
         guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
             throw URLError(.badServerResponse)
         }
-        return (try JSONDecoder().decode(ChatResponse.self, from: data)).reply ?? ""
-    }
-
-    func chatWithPatientContext(messages: [[String: String]], patientContext: String) async throws -> String {
-        let url = URL(string: "\(workerUrl)/api/patient-chat")!
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.httpBody = try JSONEncoder().encode(ChatRequest(messages: messages, patientContext: patientContext, maxTokens: 1000))
-        let (data, response) = try await URLSession.shared.data(for: request)
-        guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
-            throw URLError(.badServerResponse)
-        }
-        struct ChatResponse: Codable { let reply: String? }
         return (try JSONDecoder().decode(ChatResponse.self, from: data)).reply ?? ""
     }
 
@@ -519,19 +361,6 @@ class APIService {
         let language: String
     }
 
-    func transcribeAudio(audioB64: String, mimeType: String, patientId: String, language: String = "en") async throws -> String {
-        let url = URL(string: "\(workerUrl)/api/transcribe")!
-        var req = URLRequest(url: url)
-        req.httpMethod = "POST"
-        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        req.httpBody = try JSONEncoder().encode(TranscribeRequest(audioB64: audioB64, mimeType: mimeType, patientId: patientId, language: language))
-        let (data, response) = try await URLSession.shared.data(for: req)
-        guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
-            throw URLError(.badServerResponse)
-        }
-        if let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] {
-            if let text = json["text"] as? String { return text }
-            if let text = json["transcript"] as? String { return text }
     func transcribeAudio(
         audioB64: String,
         mimeType: String,
@@ -579,6 +408,14 @@ class APIService {
         if let tp = templatePrompt, !tp.isEmpty { body["templatePrompt"] = tp }
         req.httpBody = try JSONSerialization.data(withJSONObject: body)
         let (data, response) = try await URLSession.shared.data(for: req)
+        guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
+            throw URLError(.badServerResponse)
+        }
+        if let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+           let note = json["note"] as? String { return note }
+        return ""
+    }
+
     func transcribeChunked(
         wavData: Data,
         durationSeconds: Double,
@@ -625,25 +462,6 @@ class APIService {
         }
 
         return TranscriptMerger.merge(results)
-    }
-
-    // MARK: - SOAP note
-
-    func summarizeTranscript(transcript: String, patientContext: String, templatePrompt: String? = nil) async throws -> String {
-        let url = URL(string: "\(workerUrl)/api/soap-note")!
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        var body: [String: Any] = ["transcript": transcript, "patientContext": patientContext]
-        if let tp = templatePrompt, !tp.isEmpty { body["templatePrompt"] = tp }
-        request.httpBody = try JSONSerialization.data(withJSONObject: body)
-        let (data, response) = try await URLSession.shared.data(for: request)
-        guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
-            throw URLError(.badServerResponse)
-        }
-        if let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
-           let note = json["note"] as? String { return note }
-        return ""
     }
 
     func pushNoteToEHR(
