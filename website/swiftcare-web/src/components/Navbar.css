@@ -1,0 +1,113 @@
+.navbar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 100;
+  transition: all 0.3s var(--ease-out);
+}
+
+.navbar--scrolled {
+  background: hsl(222, 47%, 7%, 0.85);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-bottom: 1px solid var(--border);
+  box-shadow: 0 4px 24px hsl(0,0%,0%,0.3);
+}
+
+.navbar__inner {
+  display: flex;
+  align-items: center;
+  height: 68px;
+  gap: var(--space-md);
+}
+
+.navbar__logo {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  text-decoration: none;
+  flex-shrink: 0;
+}
+
+.navbar__logo-icon {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  background: var(--grad-hero);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  box-shadow: 0 2px 12px hsl(180, 75%, 44%, 0.4);
+}
+
+.navbar__logo-text {
+  font-family: var(--font-heading);
+  font-size: 1.2rem;
+  font-weight: 800;
+  color: var(--text-primary);
+}
+
+.navbar__links {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  margin-left: auto;
+}
+
+.navbar__link {
+  padding: 0.45rem 0.875rem;
+  border-radius: var(--radius-sm);
+  font-size: 0.95rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+  transition: color 0.18s, background 0.18s;
+}
+.navbar__link:hover {
+  color: var(--text-primary);
+  background: hsl(222, 38%, 16%);
+}
+
+.navbar__cta {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-left: var(--space-sm);
+}
+
+.navbar__toggle {
+  display: none;
+  color: var(--text-primary);
+  margin-left: auto;
+  padding: 0.25rem;
+}
+
+.navbar__mobile {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: var(--space-sm) var(--space-md) var(--space-md);
+  background: hsl(222, 47%, 7%, 0.97);
+  backdrop-filter: blur(20px);
+  border-top: 1px solid var(--border);
+}
+
+.navbar__mobile-link {
+  padding: 0.75rem 1rem;
+  font-size: 1rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+  border-radius: var(--radius-sm);
+  transition: color 0.18s, background 0.18s;
+}
+.navbar__mobile-link:hover {
+  color: var(--text-primary);
+  background: hsl(222, 38%, 16%);
+}
+
+@media (max-width: 768px) {
+  .navbar__links,
+  .navbar__cta { display: none; }
+  .navbar__toggle { display: flex; }
+}

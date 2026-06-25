@@ -4,6 +4,10 @@ struct PatientBannerView: View {
     let patient: Patient
     let onAskAI: (() -> Void)?
     let onStartRecording: (() -> Void)?
+
+    @ObservedObject private var contacts = PatientContactStore.shared
+    @State private var editingPhone = false
+    @State private var draftPhone = ""
     
     var body: some View {
         HStack(alignment: .top, spacing: 16) {
@@ -37,6 +41,24 @@ struct PatientBannerView: View {
                 Text(subline)
                     .font(.subheadline)
                     .foregroundColor(.secondary)
+
+                HStack(spacing: 6) {
+                    Image(systemName: "phone")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    Text(phoneNumber ?? "Add phone number")
+                        .font(.subheadline)
+                        .foregroundColor(phoneNumber == nil ? .secondary : .primary)
+                    Button {
+                        draftPhone = phoneNumber ?? ""
+                        editingPhone = true
+                    } label: {
+                        Image(systemName: "pencil")
+                            .font(.caption.weight(.semibold))
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Edit phone number")
+                }
                 
                 if !demographics.isEmpty {
                     HStack(spacing: 12) {
@@ -122,6 +144,28 @@ struct PatientBannerView: View {
         .padding()
         .background(Color(UIColor.secondarySystemGroupedBackground))
         .cornerRadius(12)
+        .sheet(isPresented: $editingPhone) {
+            NavigationStack {
+                Form {
+                    TextField("Phone number", text: $draftPhone)
+                        .keyboardType(.phonePad)
+                        .textContentType(.telephoneNumber)
+                }
+                .navigationTitle("Phone Number")
+                .toolbar {
+                    ToolbarItem(placement: .topBarLeading) {
+                        Button("Cancel") { editingPhone = false }
+                    }
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Button("Save") {
+                            contacts.savePhone(draftPhone, forPtnum: patient.ptnum)
+                            editingPhone = false
+                        }
+                    }
+                }
+            }
+            .presentationDetents([.height(220)])
+        }
     }
     
     var initials: String {
@@ -149,6 +193,10 @@ struct PatientBannerView: View {
             parts.append(lang)
         }
         return parts.isEmpty ? "—" : parts.joined(separator: " · ")
+    }
+
+    private var phoneNumber: String? {
+        contacts.phone(forPtnum: patient.ptnum, fallback: patient.phone)
     }
     
     var demographics: [(label: String, val: String)] {

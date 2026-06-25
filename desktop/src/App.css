@@ -354,3 +354,63 @@ body{font-family:var(--font);background:var(--bg-page);color:var(--text-body);fo
 ::-webkit-scrollbar-track{background:transparent}
 ::-webkit-scrollbar-thumb{background:var(--border-med);border-radius:3px}
 ::-webkit-scrollbar-thumb:hover{background:var(--border-strong)}
+
+/* ── HOME VIEW ── */
+.home-view{padding:24px;max-width:800px;margin:0 auto}
+.home-hero{background:linear-gradient(135deg,var(--teal-600,#0d9488),var(--navy-600,#1e3a5f));border-radius:16px;padding:28px 24px;margin-bottom:24px;color:#fff}
+.home-hero-inner{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap}
+.home-hero-title{font-size:20px;font-weight:700;margin:0 0 6px}
+.home-hero-sub{font-size:12px;opacity:.8;margin:0;line-height:1.5;max-width:400px}
+.btn-quick-record{display:flex;align-items:center;padding:12px 20px;background:#fff;color:#0d9488;border:none;border-radius:10px;font-weight:700;font-size:14px;cursor:pointer;white-space:nowrap;transition:opacity .15s;font-family:var(--font)}
+.btn-quick-record:hover{opacity:.9}
+.btn-quick-record-header{display:flex;align-items:center;padding:5px 12px;background:rgba(239,68,68,.08);color:#dc2626;border:1px solid rgba(239,68,68,.2);border-radius:7px;font-weight:600;font-size:12px;cursor:pointer;white-space:nowrap;transition:all .15s;font-family:var(--font)}
+.btn-quick-record-header:hover{background:rgba(239,68,68,.14)}
+.settings-btn--active{background:var(--teal-50,#f0fdf9);color:var(--teal-600,#0d9488);border-color:var(--teal-200,#99f6e4)}
+.home-section{margin-bottom:24px}
+.home-section-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
+.home-section-title{font-size:15px;font-weight:700;color:var(--text-heading);margin:0}
+.home-empty{font-size:13px;color:var(--text-faint);padding:16px 0}
+.home-visits-list{display:flex;flex-direction:column;gap:10px}
+.home-visit-card{background:var(--bg-white);border:1px solid var(--border);border-radius:12px;padding:14px 16px}
+.home-visit-meta{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+.home-visit-date{font-size:11px;font-weight:600;color:var(--text-faint)}
+.home-visit-excerpt{font-size:12px;color:var(--text-body);line-height:1.5;margin:4px 0 8px}
+.home-visit-actions{display:flex;gap:8px;flex-wrap:wrap}
+.btn-assign{padding:5px 12px;background:var(--teal-50,#f0fdf9);color:var(--teal-600,#0d9488);border:1px solid var(--teal-200,#99f6e4);border-radius:7px;font-size:12px;font-weight:600;cursor:pointer;font-family:var(--font);transition:all .15s}
+.btn-assign:hover{background:var(--teal-100,#ccfbf1)}
+.assign-panel{display:flex;flex-direction:column;gap:8px;width:100%}
+.assign-search{padding:7px 10px;border:1px solid var(--border);border-radius:var(--radius-sm);font-family:var(--font);font-size:12px;color:var(--text-heading);background:var(--bg-subtle);outline:none}
+.assign-search:focus{border-color:var(--blue-400)}
+.assign-searching{font-size:11px;color:var(--text-faint)}
+.assign-results{list-style:none;margin:0;padding:0;border:1px solid var(--border);border-radius:var(--radius-sm);overflow:hidden}
+.assign-result-item{display:flex;align-items:center;justify-content:space-between;padding:8px 12px;cursor:pointer;transition:background .1s}
+.assign-result-item:hover{background:var(--bg-hover)}
+.assign-result-name{font-size:12px;font-weight:600;color:var(--text-heading)}
+.assign-result-id{font-size:10px;color:var(--text-faint);font-family:var(--mono)}
+/* Push to EHR */
+.btn-push-ehr{padding:7px 16px;background:#0f766e;color:#fff;border:none;border-radius:var(--radius-sm);font-family:var(--font);font-size:12px;font-weight:600;cursor:pointer;transition:background .15s;display:flex;align-items:center;gap:6px}
+.btn-push-ehr:hover:not(:disabled){background:#0d5e57}
+.btn-push-ehr:disabled{opacity:.55;cursor:default}
+/* Home — stat cards */
+.home-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:8px}
+.home-stat-card{background:var(--bg-white);border:1px solid var(--border);border-radius:12px;padding:16px 18px}
+.home-stat-value{font-size:30px;font-weight:800;line-height:1}
+.home-stat-label{font-size:12px;color:var(--text-muted);margin-top:6px;font-weight:500}
+/* Home — inline search */
+.home-search{width:100%;box-sizing:border-box;padding:10px 14px;border:1px solid var(--border);border-radius:10px;font-family:var(--font);font-size:13px;color:var(--text-heading);background:var(--bg-white);outline:none}
+.home-search:focus{border-color:var(--blue-400)}
+.home-search-results{margin-top:8px;border:1px solid var(--border);border-radius:10px;overflow:hidden;background:var(--bg-white)}
+.home-search-item{display:flex;align-items:center;gap:10px;width:100%;text-align:left;padding:10px 14px;background:none;border:none;border-bottom:1px solid var(--border);cursor:pointer;font-family:var(--font);transition:background .1s}
+.home-search-item:last-child{border-bottom:none}
+.home-search-item:hover{background:var(--bg-hover)}
+.home-search-name{font-size:13px;font-weight:600;color:var(--text-heading)}
+.home-search-id{font-size:11px;color:var(--text-faint);font-family:var(--mono)}
+.home-lc-badge{font-size:9px;font-weight:800;color:#dc2626;background:#fef2f2;border:1px solid #fecaca;border-radius:99px;padding:1px 6px;margin-left:auto}
+/* Home — recent patients */
+.home-recents{display:flex;gap:10px;flex-wrap:wrap}
+.home-recent-card{position:relative;display:flex;flex-direction:column;align-items:flex-start;gap:6px;width:150px;padding:12px;background:var(--bg-white);border:1px solid var(--border);border-radius:12px;cursor:pointer;font-family:var(--font);transition:all .12s}
+.home-recent-card:hover{background:var(--bg-hover);border-color:var(--blue-400)}
+.home-recent-avatar{display:flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:50%;background:var(--teal-50,#f0fdf9);color:var(--teal-600,#0d9488);font-size:12px;font-weight:700}
+.home-recent-name{font-size:13px;font-weight:600;color:var(--text-heading);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+.home-recent-id{font-size:10px;color:var(--text-faint);font-family:var(--mono)}
+.home-recent-lc{position:absolute;top:10px;right:10px;margin:0}

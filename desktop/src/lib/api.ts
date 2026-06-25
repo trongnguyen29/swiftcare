@@ -31,7 +31,7 @@ export async function savePatientSummary(ptnum: string, summary: string, hash: s
 }
 
 // ── Voice transcription (Rust → OpenAI Whisper) ──
-function blobToBase64(blob: Blob): Promise<string> {
+export function blobToBase64(blob: Blob): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader()
     reader.onload = () => resolve((reader.result as string).split(',')[1])
@@ -73,6 +73,16 @@ export async function summarizeTranscript(
   patientContext: string,
 ): Promise<string> {
   return invoke<string>('summarize_transcript', { transcript, patientContext })
+}
+
+// ── Push clinical note to EHR (Worker → Epic FHIR) ──
+export async function pushNoteToEhr(params: {
+  noteText: string
+  patientId: string
+  patientName?: string
+  templateName?: string
+}): Promise<{ success: boolean; resourceId: string | null }> {
+  return invoke<{ success: boolean; resourceId: string | null }>('push_note_to_ehr', params)
 }
 
 // ── Per-patient AI chat (Rust → Claude) ──
