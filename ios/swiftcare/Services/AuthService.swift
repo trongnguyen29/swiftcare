@@ -109,11 +109,7 @@ class AuthService: ObservableObject {
         LAContext().canEvaluatePolicy(.deviceOwnerAuthenticationWithBiometrics, error: nil)
     }
 
-    var biometryType: String {
-        let ctx = LAContext()
-        _ = ctx.canEvaluatePolicy(.deviceOwnerAuthenticationWithBiometrics, error: nil)
-        return ctx.biometryType == .faceID ? "Face ID" : "Touch ID"
-    }
+    var biometryType: String { "Touch ID" }
 
     init() { restoreSession() }
 
@@ -293,7 +289,7 @@ class AuthService: ObservableObject {
         do {
             let ok = try await ctx.evaluatePolicy(
                 .deviceOwnerAuthenticationWithBiometrics,
-                localizedReason: "Enable \(biometryType) for SwiftCare"
+                localizedReason: "Enable Touch ID for SwiftCare"
             )
             if ok { Keychain.save(Data([1]), key: bioKey) }
             return ok
@@ -316,7 +312,7 @@ class AuthService: ObservableObject {
         do {
             return try await ctx.evaluatePolicy(
                 .deviceOwnerAuthenticationWithBiometrics,
-                localizedReason: "Sign in to SwiftCare"
+                localizedReason: "Use Touch ID to sign in to SwiftCare"
             )
         } catch { return false }
     }

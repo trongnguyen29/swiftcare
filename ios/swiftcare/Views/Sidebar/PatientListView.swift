@@ -144,7 +144,7 @@ struct PatientListView: View {
                             }
                         }
                     )) {
-                        Label(auth.biometryType, systemImage: auth.biometryType == "Face ID" ? "faceid" : "touchid")
+                        Label("Touch ID", systemImage: "touchid")
                             .font(.subheadline)
                     }
                     .tint(.brand)

@@ -170,7 +170,31 @@ struct LoginView: View {
                             }
                             .disabled(!canSubmit || isLoading)
 
-                            // Toggle sign in / sign up
+                            // Biometric sign-in (shown when previously logged in with biometrics enabled)
+                            if auth.biometricLocked || auth.biometricsEnabled {
+                                Button(action: { Task { await auth.unlockWithBiometrics() } }) {
+                                    HStack(spacing: 8) {
+                                        Image(systemName: "touchid")
+                                            .font(.system(size: 18))
+                                        Text("Sign in with \(auth.biometryType)")
+                                            .fontWeight(.semibold)
+                                    }
+                                    .foregroundColor(navy)
+                                    .frame(maxWidth: .infinity)
+                                    .padding()
+                                    .background(navy.opacity(0.08))
+                                    .cornerRadius(10)
+                                }
+
+                                HStack {
+                                    Divider()
+                                    Text("or").font(.caption).foregroundColor(.secondary)
+                                    Divider()
+                                }
+                                .frame(height: 16)
+                            }
+
+                        // Toggle sign in / sign up
                             HStack(spacing: 4) {
                                 Text(isSignUp ? "Already have an account?" : "Don't have an account?")
                                     .foregroundColor(.secondary)
@@ -201,6 +225,9 @@ struct LoginView: View {
             }
         }
         .ignoresSafeArea()
+        .task {
+            if auth.biometricLocked { await auth.unlockWithBiometrics() }
+        }
     }
 
     private var canSubmit: Bool {

@@ -36,10 +36,10 @@ struct BiometricLockView: View {
 
                 Button(action: { Task { await auth.unlockWithBiometrics() } }) {
                     VStack(spacing: 10) {
-                        Image(systemName: auth.biometryType == "Face ID" ? "faceid" : "touchid")
+                        Image(systemName: "touchid")
                             .font(.system(size: 52))
                             .foregroundColor(.white)
-                        Text(auth.biometryType)
+                        Text("Touch ID")
                             .font(.subheadline.bold())
                             .foregroundColor(.white.opacity(0.85))
                     }
@@ -59,7 +59,7 @@ struct BiometricLockView: View {
             }
         }
         .task {
-            // Auto-prompt Face ID on appear
+            // Auto-prompt Touch ID on appear
             await auth.unlockWithBiometrics()
         }
     }
