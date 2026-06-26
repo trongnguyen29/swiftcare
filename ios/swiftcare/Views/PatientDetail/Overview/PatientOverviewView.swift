@@ -143,10 +143,14 @@ struct PatientOverviewView: View {
                 ProgressView("Generating…")
                     .frame(maxWidth: .infinity, alignment: .center)
                     .padding()
-            } else if let error = aiError {
-                Text("⚠ \(error)")
-                    .font(.subheadline)
-                    .foregroundColor(.red)
+            } else if aiError != nil {
+                HStack(spacing: 8) {
+                    Image(systemName: "wifi.slash")
+                    Text("AI summary unavailable — check your connection")
+                }
+                .font(.subheadline)
+                .foregroundColor(.secondary)
+                .padding(.vertical, 8)
             } else if let overview = aiOverview {
                 VStack(alignment: .leading, spacing: 12) {
                     Text(overview)
