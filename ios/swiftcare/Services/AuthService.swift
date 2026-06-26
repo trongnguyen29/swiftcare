@@ -44,6 +44,7 @@ class AuthService: ObservableObject {
     private let bioKey       = "swiftcare_biometrics_enabled"
     // Factor key is per-user so different accounts on same device work correctly
     private func mfaFactorKey(for userId: String) -> String { "swiftcare_mfa_factor_\(userId)" }
+    private func mfaEnrolledKey(for userId: String) -> String { "swiftcare_mfa_enrolled_\(userId)" }
 
     // MARK: Models
 
@@ -128,13 +129,20 @@ class AuthService: ObservableObject {
         scheduleRefresh(for: sess)
         await MainActor.run { biometricLocked = false }
 
-        let userKey = mfaFactorKey(for: sess.user.id)
+        let userKey     = mfaFactorKey(for: sess.user.id)
+        let enrolledKey = mfaEnrolledKey(for: sess.user.id)
+        let alreadyEnrolled = Keychain.load(key: enrolledKey) != nil
+
         if let storedId = Keychain.load(key: userKey).flatMap({ String(data: $0, encoding: .utf8) }) {
             let factor = MFAFactor(id: storedId, factor_type: "totp", friendly_name: "Authenticator App", status: "verified")
             await MainActor.run { isMFAEnrolled = true; pendingMFA = factor }
         } else if let factor = try? await enrolledMFAFactor(token: sess.access_token) {
             if let idData = factor.id.data(using: .utf8) { Keychain.save(idData, key: userKey) }
+            Keychain.save(Data([1]), key: enrolledKey)
             await MainActor.run { isMFAEnrolled = true; pendingMFA = factor }
+        } else if alreadyEnrolled {
+            // Enrolled flag in Keychain but factor ID lost — skip prompt, let user in
+            await MainActor.run { isMFAEnrolled = true; mfaEnrollmentRequired = false }
         } else {
             await MainActor.run { isMFAEnrolled = false; mfaEnrollmentRequired = true }
         }
@@ -274,9 +282,12 @@ class AuthService: ObservableObject {
         try checkHTTP(response, data: data)
         let sess = try JSONDecoder().decode(AuthSession.self, from: data)
         await apply(sess)
-        // Persist factor ID per user so different accounts work correctly
-        if let uid = session?.user.id, let idData = factorId.data(using: .utf8) {
-            Keychain.save(idData, key: mfaFactorKey(for: uid))
+        // Persist factor ID and enrolled flag per user
+        if let uid = session?.user.id {
+            if let idData = factorId.data(using: .utf8) {
+                Keychain.save(idData, key: mfaFactorKey(for: uid))
+            }
+            Keychain.save(Data([1]), key: mfaEnrolledKey(for: uid))
         }
         let offerTouchID = !biometricsEnabled
         await MainActor.run {
@@ -429,13 +440,19 @@ class AuthService: ObservableObject {
     }
 
     private func checkMFAOnRestore(sess: AuthSession) async {
-        let userKey = mfaFactorKey(for: sess.user.id)
+        let userKey     = mfaFactorKey(for: sess.user.id)
+        let enrolledKey = mfaEnrolledKey(for: sess.user.id)
+        let alreadyEnrolled = Keychain.load(key: enrolledKey) != nil
+
         if let storedId = Keychain.load(key: userKey).flatMap({ String(data: $0, encoding: .utf8) }) {
             let factor = MFAFactor(id: storedId, factor_type: "totp", friendly_name: "Authenticator App", status: "verified")
             await MainActor.run { isMFAEnrolled = true; pendingMFA = factor }
         } else if let factor = try? await enrolledMFAFactor(token: sess.access_token) {
             if let idData = factor.id.data(using: .utf8) { Keychain.save(idData, key: userKey) }
+            Keychain.save(Data([1]), key: enrolledKey)
             await MainActor.run { isMFAEnrolled = true; pendingMFA = factor }
+        } else if alreadyEnrolled {
+            await MainActor.run { isMFAEnrolled = true; mfaEnrollmentRequired = false }
         } else {
             await MainActor.run { isMFAEnrolled = false; mfaEnrollmentRequired = true }
         }
