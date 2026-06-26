@@ -27,6 +27,10 @@ struct VisitView: View {
     /// Incremented by parent to auto-start a recording (mirrors desktop recordSignal).
     var startSignal: Int = 0
 
+    /// When set, the view opens an already-saved visit (transcript + note) in the
+    /// editable results screen instead of starting a new recording.
+    var existingVisit: Visit? = nil
+
     @StateObject private var recorder = AudioRecorderManager()
 
     @State private var recorderState: RecorderState = .idle
@@ -84,6 +88,10 @@ struct VisitView: View {
         }
         .background(Color(UIColor.systemGroupedBackground))
         .onAppear {
+            if let visit = existingVisit, case .idle = recorderState, currentVisitId == nil {
+                loadExisting(visit)
+                return
+            }
             if startSignal > 0, handledSignal != startSignal {
                 handledSignal = startSignal
                 starting = true
@@ -377,9 +385,7 @@ struct VisitView: View {
                     }
                     pushToEHRButton
                 }
-                if case let .success(msg) = ehrPushState {
-                    Label(msg, systemImage: "checkmark.seal.fill").font(.caption).foregroundColor(.green)
-                } else if case let .failure(msg) = ehrPushState {
+                if case let .failure(msg) = ehrPushState {
                     Text("⚠ \(msg)").font(.caption).foregroundColor(.red)
                 }
                 if let saveError {
@@ -397,14 +403,6 @@ struct VisitView: View {
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(10).background(Color.red.opacity(0.06)).cornerRadius(8)
-                } else if audioUploadFailed {
-                    Button(action: { Task { await retryUpload() } }) {
-                        Label("Audio didn't upload — Retry", systemImage: "arrow.clockwise")
-                            .font(.system(size: 12, weight: .semibold))
-                            .frame(maxWidth: .infinity).padding(.vertical, 8)
-                            .background(Color.orange.opacity(0.12)).foregroundColor(.orange).cornerRadius(8)
-                    }
-                    .buttonStyle(.plain)
                 }
             }
             .padding()
@@ -517,6 +515,16 @@ struct VisitView: View {
 
     // MARK: - Actions
 
+    /// Hydrates the editable results screen from an already-saved visit.
+    private func loadExisting(_ visit: Visit) {
+        currentVisitId = visit.id
+        transcript = visit.transcript
+        soap = SOAPNote.parse(visit.note)
+        clinicalNote = visit.note
+        recorderState = .done
+        saveState = .saved
+    }
+
     func startIfPermitted() async {
         starting = true
         let granted = await recorder.checkPermission()
@@ -604,6 +612,8 @@ struct VisitView: View {
         }
 
         // Step 2 — upload the audio file. The Retry button reflects ONLY this step.
+        // Clear any stale failure flag before re-attempting so a prior error can't linger.
+        audioUploadFailed = false
         let audioPath: String
         do {
             audioPath = try await VisitsService.shared.uploadAudio(visitId: visitId, wavData: wavData)

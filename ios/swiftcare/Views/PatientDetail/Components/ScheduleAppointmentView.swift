@@ -5,6 +5,7 @@ struct ScheduleAppointmentView: View {
 
     let onScheduled: ((Appointment) -> Void)?
 
+    @EnvironmentObject private var auth: AuthService
     @ObservedObject private var contacts = PatientContactStore.shared
     @State private var selectedPatient: Patient?
     @State private var patientQuery = ""
@@ -20,7 +21,7 @@ struct ScheduleAppointmentView: View {
     @State private var reason = ""
     @State private var showDismissConfirm = false
 
-    private let providerName = "Dr. Marcus Webb"
+    private var providerName: String { auth.practitionerName }
     private let durations = ["15 min", "30 min", "45 min", "60 min"]
 
     init(
@@ -31,8 +32,13 @@ struct ScheduleAppointmentView: View {
         _selectedPatient = State(initialValue: initialPatient)
         _selectedDate = State(initialValue: initialDate)
         let cal = Calendar.current
-        let nineAM = cal.date(bySettingHour: 9, minute: 0, second: 0, of: initialDate) ?? initialDate
-        _selectedTime = State(initialValue: nineAM)
+        let comps = cal.dateComponents([.hour, .minute], from: Date())
+        let totalMinutes = (comps.hour ?? 9) * 60 + (comps.minute ?? 0)
+        let nextSlot = ((totalMinutes + 14) / 15) * 15  // round up to next 15-min mark
+        let defaultHour = min(nextSlot / 60, 23)
+        let defaultMinute = nextSlot % 60
+        let defaultTime = cal.date(bySettingHour: defaultHour, minute: defaultMinute, second: 0, of: Date()) ?? Date()
+        _selectedTime = State(initialValue: defaultTime)
         self.onScheduled = onScheduled
     }
 
@@ -94,13 +100,6 @@ struct ScheduleAppointmentView: View {
                             .padding(.vertical, 10)
                             .background(RoundedRectangle(cornerRadius: 8).stroke(Color(UIColor.separator), lineWidth: 1))
                         }
-                    }
-
-                    FormField(label: "PROVIDER") {
-                        Text(providerName)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding()
-                            .background(RoundedRectangle(cornerRadius: 8).stroke(Color(UIColor.separator), lineWidth: 1))
                     }
 
                     FormField(label: "REASON FOR VISIT") {

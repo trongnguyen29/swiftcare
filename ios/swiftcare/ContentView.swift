@@ -4,7 +4,7 @@ import UIKit
 // MARK: - Tabs
 
 enum AppTab: Int, CaseIterable, Identifiable {
-    case home, patients, appointments
+    case home, patients, appointments, preferences
     var id: Int { rawValue }
 
     var title: String {
@@ -12,6 +12,7 @@ enum AppTab: Int, CaseIterable, Identifiable {
         case .home:         return "Home"
         case .patients:     return "Patients"
         case .appointments: return "Schedule"
+        case .preferences:  return "Preferences"
         }
     }
     var icon: String {
@@ -19,6 +20,7 @@ enum AppTab: Int, CaseIterable, Identifiable {
         case .home:         return "house.fill"
         case .patients:     return "person.2.fill"
         case .appointments: return "calendar"
+        case .preferences:  return "gearshape.fill"
         }
     }
 }
@@ -55,34 +57,73 @@ struct ContentView: View {
         }
     }
 
-    // MARK: - Main app (drawer UI from main branch)
+    // MARK: - Main app
 
     private var mainApp: some View {
         GeometryReader { geo in
             let drawerW = min(330, geo.size.width * 0.82)
 
             VStack(spacing: 0) {
-                NativeGlassTabBar(tab: $tab) { selectTopLevelTab($0) }
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 58)
-
+                // ── Top bar: NativeGlassTabBar + back/sidebar overlay ─────────
                 ZStack(alignment: .leading) {
-                    TabView(selection: $tab) {
+                    NativeGlassTabBar(tab: $tab) { selectTopLevelTab($0) }
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 58)
+
+                    if selectedPatient != nil && tab == .patients {
+                        HStack(spacing: 0) {
+                            Button { selectedPatient = nil } label: {
+                                Image(systemName: "chevron.left")
+                                    .font(.system(size: 16, weight: .semibold))
+                                    .foregroundColor(.brand)
+                                    .frame(width: 44, height: 58)
+                            }
+                            .buttonStyle(.plain)
+
+                            Button {
+                                withAnimation(.spring(response: 0.35, dampingFraction: 0.86)) { sidebarOpen.toggle() }
+                            } label: {
+                                Image(systemName: "sidebar.left")
+                                    .font(.system(size: 16, weight: .semibold))
+                                    .foregroundColor(.brand)
+                                    .frame(width: 38, height: 58)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                        // Opaque background covers the Home tab icon underneath
+                        .background(Color(UIColor.systemBackground))
+                    }
+                }
+
+                // ── Content: ZStack keeps every tab alive (preserves state) ──
+                ZStack(alignment: .leading) {
+                    ZStack {
                         HomeView(
                             selectedPatient: $selectedPatient,
                             onOpenPatient: openPatient,
                             onShowAppointments: { switchTab(.appointments) }
                         )
-                        .tag(AppTab.home)
+                        .opacity(tab == .home ? 1 : 0)
+                        .allowsHitTesting(tab == .home)
 
                         patientsPage
-                            .tag(AppTab.patients)
+                            .opacity(tab == .patients ? 1 : 0)
+                            .allowsHitTesting(tab == .patients)
 
                         GlobalAppointmentsView(onOpenPatient: openPatient)
-                            .tag(AppTab.appointments)
+                            .opacity(tab == .appointments ? 1 : 0)
+                            .allowsHitTesting(tab == .appointments)
+
+                        PreferencesView()
+                            .environmentObject(auth)
+                            .opacity(tab == .preferences ? 1 : 0)
+                            .allowsHitTesting(tab == .preferences)
                     }
-                    .tabViewStyle(.page(indexDisplayMode: .never))
-                    .disabled(sidebarOpen)
+                    // 2-finger swipe changes the main tab (installed on UIWindow so it
+                    // doesn't block single-finger scrolling or tapping anywhere)
+                    .background(
+                        TwoFingerSwipeInstaller(tab: tab) { selectTopLevelTab($0) }
+                    )
 
                     if tab == .patients && !sidebarOpen {
                         Color.clear
@@ -126,30 +167,11 @@ struct ContentView: View {
 
     private var patientsPage: some View {
         NavigationStack {
-            Group {
-                if let patient = selectedPatient {
-                    PatientDetailView(patient: patient)
-                } else {
-                    PatientListView(selectedPatient: $selectedPatient)
-                }
-            }
-            .navigationTitle(selectedPatient?.displayName ?? "")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                if selectedPatient != nil {
-                    ToolbarItemGroup(placement: .topBarLeading) {
-                        Button { selectedPatient = nil } label: {
-                            Image(systemName: "chevron.left")
-                        }
-                        .accessibilityLabel("Back to patients")
-
-                        Button {
-                            withAnimation(.spring(response: 0.35, dampingFraction: 0.86)) { sidebarOpen.toggle() }
-                        } label: {
-                            Image(systemName: "sidebar.left")
-                        }
-                    }
-                }
+            if let patient = selectedPatient {
+                PatientDetailView(patient: patient)
+            } else {
+                PatientListView(selectedPatient: $selectedPatient)
+                    .toolbar(.hidden, for: .navigationBar)
             }
         }
     }
@@ -278,6 +300,63 @@ struct NativeGlassTabBar: UIViewRepresentable {
             guard let selected = AppTab(rawValue: item.tag) else { return }
             onSelect(selected)
         }
+    }
+}
+
+// MARK: - 2-finger swipe for main tab switching
+// Installed on the UIWindow so single-finger gestures anywhere are unaffected.
+
+private struct TwoFingerSwipeInstaller: UIViewRepresentable {
+    let tab: AppTab
+    let onSelect: (AppTab) -> Void
+
+    func makeCoordinator() -> Coordinator { Coordinator() }
+
+    func makeUIView(context: Context) -> UIView {
+        let v = UIView()
+        v.backgroundColor = .clear
+        v.isUserInteractionEnabled = false
+        return v
+    }
+
+    func updateUIView(_ uiView: UIView, context: Context) {
+        context.coordinator.currentTab = tab
+        context.coordinator.onSelect = onSelect
+        if context.coordinator.pan == nil, let window = uiView.window {
+            context.coordinator.install(on: window)
+        }
+    }
+
+    final class Coordinator: NSObject, UIGestureRecognizerDelegate {
+        var currentTab: AppTab = .home
+        var onSelect: ((AppTab) -> Void)?
+        var pan: UIPanGestureRecognizer?
+
+        func install(on window: UIWindow) {
+            let r = UIPanGestureRecognizer(target: self, action: #selector(handlePan))
+            r.minimumNumberOfTouches = 2
+            r.maximumNumberOfTouches = 2
+            r.cancelsTouchesInView = false
+            r.delaysTouchesBegan = false
+            r.delegate = self
+            window.addGestureRecognizer(r)
+            pan = r
+        }
+
+        @objc func handlePan(_ r: UIPanGestureRecognizer) {
+            guard r.state == .ended else { return }
+            let t = r.translation(in: r.view).x
+            let tabs = AppTab.allCases
+            guard let i = tabs.firstIndex(of: currentTab) else { return }
+            if t < -60, i + 1 < tabs.count {
+                DispatchQueue.main.async { self.onSelect?(tabs[i + 1]) }
+            } else if t > 60, i > 0 {
+                DispatchQueue.main.async { self.onSelect?(tabs[i - 1]) }
+            }
+        }
+
+        func gestureRecognizer(_ g: UIGestureRecognizer,
+                               shouldRecognizeSimultaneouslyWith other: UIGestureRecognizer) -> Bool { true }
     }
 }
 

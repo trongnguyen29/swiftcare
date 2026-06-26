@@ -1,19 +1,17 @@
 import SwiftUI
 
 enum PatientTab: String, CaseIterable {
-    case overview     = "Overview"
-    case chart        = "Chart"
-    case visit        = "Visit"
-    case pastVisits   = "History"
-    case appointments = "Appointments"
+    case overview   = "Overview"
+    case chart      = "Chart"
+    case visit      = "Visit"
+    case pastVisits = "History"
 
     var icon: String {
         switch self {
-        case .overview:     return "square.grid.2x2"
-        case .chart:        return "chart.bar.doc.horizontal"
-        case .visit:        return "waveform.circle"
-        case .pastVisits:   return "clock.arrow.circlepath"
-        case .appointments: return "calendar"
+        case .overview:   return "square.grid.2x2"
+        case .chart:      return "chart.bar.doc.horizontal"
+        case .visit:      return "waveform.circle"
+        case .pastVisits: return "clock.arrow.circlepath"
         }
     }
 }
@@ -38,15 +36,11 @@ struct PatientDetailView: View {
                 }
             )
             .padding()
-            
-            // Tab Bar
+
+            // Tab indicator (tap or 1-finger swipe via the TabView below)
             HStack(spacing: 0) {
                 ForEach(PatientTab.allCases, id: \.self) { tab in
-                    Button(action: {
-                        withAnimation {
-                            activeTab = tab
-                        }
-                    }) {
+                    Button(action: { withAnimation { activeTab = tab } }) {
                         HStack(spacing: 8) {
                             Image(systemName: tab.icon)
                             Text(tab.rawValue)
@@ -68,45 +62,39 @@ struct PatientDetailView: View {
                 }
             }
             .background(Color(UIColor.systemBackground))
-            
+
             Divider()
-            
-            // Content — each tab owns its own scroll
-            Group {
-                switch activeTab {
-                case .overview:
-                    ScrollView {
-                        PatientOverviewView(patient: displayPatient)
-                            .padding()
-                    }
-                    .background(Color(UIColor.systemGroupedBackground))
 
-                case .chart:
-                    ScrollView {
-                        VStack(spacing: 16) {
-                            PatientChartView(patient: displayPatient)
-                            PatientChartDetailView(patient: displayPatient)
-                        }
-                        .padding()
-                    }
-                    .background(Color(UIColor.systemGroupedBackground))
-
-                case .visit:
-                    VisitView(patient: displayPatient, startSignal: startRecordingSignal)
-
-                case .pastVisits:
-                    ScrollView {
-                        PastVisitsView(patient: patient).padding()
-                    }
-                    .background(Color(UIColor.systemGroupedBackground))
-
-                case .appointments:
-                    PatientAppointmentsView(patient: displayPatient)
+            // 1-finger swipe switches patient tabs
+            TabView(selection: $activeTab) {
+                ScrollView {
+                    PatientOverviewView(patient: displayPatient).padding()
                 }
+                .background(Color(UIColor.systemGroupedBackground))
+                .tag(PatientTab.overview)
+
+                ScrollView {
+                    VStack(spacing: 16) {
+                        PatientChartView(patient: displayPatient)
+                        PatientChartDetailView(patient: displayPatient)
+                    }
+                    .padding()
+                }
+                .background(Color(UIColor.systemGroupedBackground))
+                .tag(PatientTab.chart)
+
+                VisitView(patient: displayPatient, startSignal: startRecordingSignal)
+                    .tag(PatientTab.visit)
+
+                ScrollView {
+                    PastVisitsView(patient: patient).padding()
+                }
+                .background(Color(UIColor.systemGroupedBackground))
+                .tag(PatientTab.pastVisits)
             }
+            .tabViewStyle(.page(indexDisplayMode: .never))
         }
-        .navigationTitle(patient.displayName)
-        .navigationBarTitleDisplayMode(.inline)
+        .toolbar(.hidden, for: .navigationBar)
         .sheet(isPresented: $showAIChat) {
             AIChatView(patient: displayPatient)
         }

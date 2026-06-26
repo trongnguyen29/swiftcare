@@ -10,6 +10,7 @@ struct PastVisitsView: View {
     @State private var retryingId: String?
     @State private var playerItem: (visitId: String, url: URL)?
     @State private var showAssign = false
+    @State private var deletingId: String?
 
     var body: some View {
         Group {
@@ -25,9 +26,11 @@ struct PastVisitsView: View {
                         VisitCard(
                             visit: visit,
                             isRetrying: retryingId == visit.id,
+                            isDeleting: deletingId == visit.id,
                             playerItem: playerItem?.visitId == visit.id ? playerItem?.url : nil,
                             onPlayAudio: { Task { await loadAudio(for: visit) } },
-                            onRetry: { Task { await retryVisit(visit) } }
+                            onRetry: { Task { await retryVisit(visit) } },
+                            onDelete: { Task { await deleteVisit(visit) } }
                         )
                     }
                 }
@@ -57,13 +60,23 @@ struct PastVisitsView: View {
     private func retryVisit(_ visit: Visit) async {
         retryingId = visit.id
         do {
-            // Re-transcribe using the stored audio path if available, or just mark complete
             _ = try await VisitsService.shared.updateVisit(id: visit.id, fields: ["status": "complete"])
             await load()
         } catch {
             self.error = error.localizedDescription
         }
         retryingId = nil
+    }
+
+    private func deleteVisit(_ visit: Visit) async {
+        deletingId = visit.id
+        do {
+            try await VisitsService.shared.deleteVisit(id: visit.id)
+            visits.removeAll { $0.id == visit.id }
+        } catch {
+            self.error = error.localizedDescription
+        }
+        deletingId = nil
     }
 }
 
@@ -72,12 +85,15 @@ struct PastVisitsView: View {
 private struct VisitCard: View {
     let visit: Visit
     let isRetrying: Bool
+    let isDeleting: Bool
     let playerItem: URL?
     let onPlayAudio: () -> Void
     let onRetry: () -> Void
+    let onDelete: () -> Void
 
     @State private var expanded = false
     @State private var player: AVPlayer?
+    @State private var confirmDelete = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -93,6 +109,21 @@ private struct VisitCard: View {
                 }
                 Spacer()
                 VisitStatusBadge(status: visit.status)
+                if isDeleting {
+                    ProgressView().controlSize(.small).padding(.leading, 4)
+                } else {
+                    Button { confirmDelete = true } label: {
+                        Image(systemName: "trash").font(.caption).foregroundColor(.red.opacity(0.7))
+                    }
+                    .buttonStyle(.plain)
+                    .padding(.leading, 8)
+                }
+            }
+            .confirmationDialog("Delete this visit?", isPresented: $confirmDelete, titleVisibility: .visible) {
+                Button("Delete", role: .destructive) { onDelete() }
+                Button("Cancel", role: .cancel) { }
+            } message: {
+                Text("This visit and its recording will be permanently removed.")
             }
 
             // Transcript excerpt

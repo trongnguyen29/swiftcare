@@ -52,6 +52,7 @@ final class AppointmentStore: ObservableObject {
         let endDate = date.addingTimeInterval(TimeInterval(durationMinutes * 60))
 
         let resource: [String: Any] = [
+            "id": UUID().uuidString,
             "resourceType": "Appointment",
             "status": "booked",
             "serviceType": [["coding": [["display": type.rawValue]]]],
@@ -83,6 +84,18 @@ final class AppointmentStore: ObservableObject {
             reminderLog = appointments.compactMap(reminderLogEntry)
         } catch {
             // Keep the current schedule visible if the network is temporarily unavailable.
+        }
+    }
+
+    func delete(appointmentId: String) async throws {
+        try await APIService.shared.deleteAppointment(id: appointmentId)
+        appointments.removeAll { $0.id == appointmentId }
+    }
+
+    func updateStatus(appointmentId: String, status: AppointmentStatus) async throws {
+        try await APIService.shared.updateAppointmentStatus(id: appointmentId, status: status)
+        if let index = appointments.firstIndex(where: { $0.id == appointmentId }) {
+            appointments[index].status = status
         }
     }
 

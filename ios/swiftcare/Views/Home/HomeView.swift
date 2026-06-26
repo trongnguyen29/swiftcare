@@ -14,6 +14,7 @@ struct HomeView: View {
     @State private var unassigned: [Visit] = []
     @State private var loadingUnassigned = false
     @State private var assignVisit: Visit?
+    @State private var openVisit: Visit?
 
     // Patient search
     @State private var searchText = ""
@@ -59,6 +60,18 @@ struct HomeView: View {
         }
         .sheet(item: $assignVisit) { visit in
             AssignPatientView(visitId: visit.id) { _ in Task { await loadUnassigned() } }
+        }
+        .fullScreenCover(item: $openVisit, onDismiss: { Task { await loadUnassigned() } }) { visit in
+            NavigationView {
+                VisitView(patient: nil, existingVisit: visit)
+                    .navigationTitle("Visit")
+                    .navigationBarTitleDisplayMode(.inline)
+                    .toolbar {
+                        ToolbarItem(placement: .navigationBarTrailing) {
+                            Button("Done") { openVisit = nil }
+                        }
+                    }
+            }
         }
         .task {
             await appointmentStore.loadAppointments()
@@ -232,7 +245,12 @@ struct HomeView: View {
                     .font(.subheadline).foregroundColor(.secondary)
             } else {
                 ForEach(unassigned) { visit in
-                    UnassignedCard(visit: visit) { assignVisit = visit }
+                    UnassignedCard(
+                        visit: visit,
+                        onAssign: { assignVisit = visit },
+                        onOpen: { openVisit = visit },
+                        onDelete: { Task { await deleteUnassigned(visit) } }
+                    )
                 }
             }
         }
@@ -306,7 +324,7 @@ struct HomeView: View {
             HStack(spacing: 12) {
                 Text(entry.appointment.date.formatted(.dateTime.hour().minute()))
                     .font(.subheadline.weight(.bold)).foregroundColor(seen ? .secondary : .brand)
-                    .frame(width: 60)
+                    .frame(width: 80, alignment: .leading)
                 Rectangle().fill((seen ? Color.secondary : Color.brand).opacity(0.35))
                     .frame(width: 3).cornerRadius(2)
                 VStack(alignment: .leading, spacing: 3) {
@@ -364,6 +382,11 @@ struct HomeView: View {
         loadingUnassigned = false
     }
 
+    private func deleteUnassigned(_ visit: Visit) async {
+        try? await VisitsService.shared.deleteVisit(id: visit.id)
+        unassigned.removeAll { $0.id == visit.id }
+    }
+
     private func initials(_ name: String) -> String {
         let parts = name.split(separator: " ").prefix(2)
         return parts.map { String($0.prefix(1)) }.joined().uppercased()
@@ -403,6 +426,10 @@ private struct StatCard: View {
 private struct UnassignedCard: View {
     let visit: Visit
     let onAssign: () -> Void
+    let onOpen: () -> Void
+    let onDelete: () -> Void
+
+    @State private var confirmDelete = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -418,6 +445,18 @@ private struct UnassignedCard: View {
                         .padding(.horizontal, 10).padding(.vertical, 5)
                         .background(Color.brandLight).foregroundColor(.brand).cornerRadius(8)
                 }
+                .buttonStyle(.plain)
+                Button { confirmDelete = true } label: {
+                    Image(systemName: "trash").font(.caption).foregroundColor(.red.opacity(0.7))
+                }
+                .buttonStyle(.plain)
+                .padding(.leading, 4)
+            }
+            .confirmationDialog("Delete this visit?", isPresented: $confirmDelete, titleVisibility: .visible) {
+                Button("Delete", role: .destructive) { onDelete() }
+                Button("Cancel", role: .cancel) { }
+            } message: {
+                Text("This unassigned visit will be permanently removed.")
             }
             if !visit.transcript.isEmpty {
                 Text(visit.transcript)
@@ -427,6 +466,8 @@ private struct UnassignedCard: View {
         .padding()
         .background(Color(UIColor.secondarySystemGroupedBackground))
         .cornerRadius(12)
+        .contentShape(Rectangle())
+        .onTapGesture { onOpen() }
     }
 
     private var formattedDate: String { VisitDate.display(visit.createdAt) }

@@ -287,7 +287,7 @@ struct FHIRExtension: Decodable {
 // MARK: - FHIR Appointment resource
 
 struct FHIRAppointmentResource: Decodable {
-    let id: String
+    let id: String?
     let status: String?
     let serviceType: [FHIRServiceType]?
     let start: String?
@@ -470,6 +470,7 @@ extension Appointment {
         case "fulfilled":                         apptStatus = .completed
         case "cancelled":                         apptStatus = .canceled
         case "arrived", "checked-in":             apptStatus = .confirmed
+        case "noshow", "no-show":                 apptStatus = .noShow
         default:                                  apptStatus = .scheduled
         }
 
@@ -484,7 +485,7 @@ extension Appointment {
         }
 
         return Appointment(
-            id:              r.id,
+            id:              r.id ?? row.fhir_id,
             patientId:       row.patient_id,
             patientName:     patientParticipant?.actor?.display ?? "",
             date:            date,

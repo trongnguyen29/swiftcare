@@ -37,6 +37,17 @@ enum AppointmentStatus: String, Codable {
     case confirmed = "Confirmed"
     case canceled  = "Canceled"
     case completed = "Completed"
+    case noShow    = "No Show"
+
+    var fhirValue: String {
+        switch self {
+        case .scheduled: return "booked"
+        case .confirmed: return "arrived"
+        case .canceled:  return "cancelled"
+        case .completed: return "fulfilled"
+        case .noShow:    return "noshow"
+        }
+    }
 }
 
 struct Appointment: Identifiable, Codable {
@@ -46,7 +57,7 @@ struct Appointment: Identifiable, Codable {
     let date: Date
     let durationMinutes: Int
     let type: AppointmentType
-    let status: AppointmentStatus
+    var status: AppointmentStatus
     let reason: String
     let doctorName: String
     let phoneNumber: String

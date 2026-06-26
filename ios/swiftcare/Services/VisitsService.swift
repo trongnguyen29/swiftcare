@@ -159,6 +159,7 @@ class VisitsService {
         let url = URL(string: "\(workerUrl)/api/visit-audio")!
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
+        request.timeoutInterval = 300  // 5 min — large wav files can take a while to base64-decode + upload
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
 
@@ -166,11 +167,14 @@ class VisitsService {
         guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
             throw Self.serverError(data, response)
         }
-        guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let path = json["path"] as? String else {
-            throw URLError(.cannotParseResponse)
+        // A 2xx means the audio is stored. Prefer the server-returned path, but if the
+        // response body can't be parsed, fall back to the known path rather than
+        // reporting a (false) upload failure.
+        if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+           let path = json["path"] as? String {
+            return path
         }
-        return path
+        return "\(visitId).wav"
     }
 
     func audioURL(for path: String) async throws -> URL {
@@ -188,6 +192,18 @@ class VisitsService {
             throw URLError(.cannotParseResponse)
         }
         return audioURL
+    }
+
+    // MARK: - Delete
+
+    func deleteVisit(id: String) async throws {
+        let url = URL(string: "\(workerUrl)/api/visits/\(id)")!
+        var request = URLRequest(url: url)
+        request.httpMethod = "DELETE"
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
+            throw Self.serverError(data, response)
+        }
     }
 
     // MARK: - Assign visit to patient

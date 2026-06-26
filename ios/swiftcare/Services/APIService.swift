@@ -179,11 +179,10 @@ class APIService {
     }
 
     func getAllAppointments() async throws -> [Appointment] {
-        let url = supabaseURL("fhir_appointment", params: [
-            URLQueryItem(name: "select", value: "fhir_id,patient_id,resource"),
-            URLQueryItem(name: "order",  value: "resource->start.asc"),
-        ])
-        let (data, response) = try await URLSession.shared.data(for: makeRequest(url))
+        let url = URL(string: "\(workerUrl)/api/appointments")!
+        var req = URLRequest(url: url)
+        req.setValue("application/json", forHTTPHeaderField: "Accept")
+        let (data, response) = try await URLSession.shared.data(for: req)
         guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
             throw URLError(.badServerResponse)
         }
@@ -192,17 +191,21 @@ class APIService {
     }
 
     func createAppointment(_ resource: [String: Any], patientId: String) async throws -> Appointment {
-        let url = URL(string: "\(supabaseUrl)/rest/v1/fhir_appointment")!
-        var req = makeRequest(url, method: "POST")
+        // Route through the worker so the service-role key is used (bypasses Supabase RLS).
+        let url = URL(string: "\(workerUrl)/api/appointments")!
+        var req = URLRequest(url: url)
+        req.httpMethod = "POST"
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        req.setValue("return=representation", forHTTPHeaderField: "Prefer")
         req.httpBody = try JSONSerialization.data(withJSONObject: [
-            "patient_id": patientId,
-            "resource":   resource,
+            "patientId": patientId,
+            "resource":  resource,
         ])
         let (data, response) = try await URLSession.shared.data(for: req)
         guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
-            throw URLError(.badServerResponse)
+            let msg = (try? JSONSerialization.jsonObject(with: data) as? [String: Any])?["error"] as? String
+                ?? String(data: data, encoding: .utf8) ?? "Server error"
+            throw NSError(domain: "APIService", code: (response as? HTTPURLResponse)?.statusCode ?? 0,
+                          userInfo: [NSLocalizedDescriptionKey: msg])
         }
         let rows = try makeAppointmentDecoder().decode([FHIRAppointmentRow].self, from: data)
         guard let appt = rows.first.flatMap({ Appointment.fromFHIR($0) }) else {
@@ -211,17 +214,28 @@ class APIService {
         return appt
     }
 
-    func updateAppointmentStatus(id: String, status: AppointmentStatus) async throws {
-        var c = URLComponents(string: "\(supabaseUrl)/rest/v1/fhir_appointment")!
-        c.queryItems = [URLQueryItem(name: "fhir_id", value: "eq.\(id)")]
-        var req = makeRequest(c.url!, method: "PATCH")
-        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        req.httpBody = try JSONSerialization.data(withJSONObject: [
-            "resource": ["status": status.rawValue.lowercased()]
-        ])
-        let (_, response) = try await URLSession.shared.data(for: req)
+    func deleteAppointment(id: String) async throws {
+        let url = URL(string: "\(workerUrl)/api/appointments/\(id)")!
+        var req = URLRequest(url: url)
+        req.httpMethod = "DELETE"
+        let (data, response) = try await URLSession.shared.data(for: req)
         guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
             throw URLError(.badServerResponse)
+        }
+    }
+
+    func updateAppointmentStatus(id: String, status: AppointmentStatus) async throws {
+        let url = URL(string: "\(workerUrl)/api/appointments/\(id)/status")!
+        var req = URLRequest(url: url)
+        req.httpMethod = "PATCH"
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.httpBody = try JSONSerialization.data(withJSONObject: ["status": status.fhirValue])
+        let (data, response) = try await URLSession.shared.data(for: req)
+        guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
+            let msg = (try? JSONSerialization.jsonObject(with: data) as? [String: Any])?["error"] as? String
+                ?? String(data: data, encoding: .utf8) ?? "Server error"
+            throw NSError(domain: "APIService", code: (response as? HTTPURLResponse)?.statusCode ?? 0,
+                          userInfo: [NSLocalizedDescriptionKey: msg])
         }
     }
 

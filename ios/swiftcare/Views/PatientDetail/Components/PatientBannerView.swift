@@ -6,8 +6,18 @@ struct PatientBannerView: View {
     let onStartRecording: (() -> Void)?
 
     @ObservedObject private var contacts = PatientContactStore.shared
+    @ObservedObject private var appointmentStore = AppointmentStore.shared
     @State private var editingPhone = false
     @State private var draftPhone = ""
+    @State private var updatingStatus = false
+
+    private var nextAppointment: Appointment? {
+        appointmentStore.appointments
+            .filter { $0.patientId == patient.ptnum && $0.status != .canceled }
+            .filter { $0.date >= Calendar.current.startOfDay(for: Date()) }
+            .sorted { $0.date < $1.date }
+            .first
+    }
     
     var body: some View {
         HStack(alignment: .top, spacing: 16) {
@@ -97,7 +107,7 @@ struct PatientBannerView: View {
                         }
                         .buttonStyle(PlainButtonStyle())
                     }
-                    
+
                     if let onAskAI = onAskAI {
                         Button(action: onAskAI) {
                             HStack(spacing: 6) {
@@ -112,6 +122,63 @@ struct PatientBannerView: View {
                             .cornerRadius(8)
                         }
                         .buttonStyle(PlainButtonStyle())
+                    }
+                }
+
+                if let appt = nextAppointment {
+                    VStack(alignment: .trailing, spacing: 8) {
+                        HStack(spacing: 4) {
+                            Image(systemName: "calendar").font(.caption2).foregroundColor(.secondary)
+                            Text("Next: \(appt.date.formatted(.dateTime.month(.abbreviated).day().hour().minute()))")
+                                .font(.caption).foregroundColor(.secondary)
+                        }
+                        if updatingStatus {
+                            ProgressView().controlSize(.small)
+                        } else {
+                            HStack(spacing: 8) {
+                                let isNoShow   = appt.status == .noShow
+                                let isCheckedIn = appt.status == .completed
+                                Button {
+                                    guard !isNoShow else { return }
+                                    Task {
+                                        updatingStatus = true
+                                        try? await appointmentStore.updateStatus(appointmentId: appt.id, status: .noShow)
+                                        updatingStatus = false
+                                    }
+                                } label: {
+                                    HStack(spacing: 5) {
+                                        if isNoShow { Image(systemName: "checkmark").font(.caption2.weight(.bold)) }
+                                        Text("No Show")
+                                    }
+                                    .font(.system(size: 13, weight: .semibold))
+                                    .foregroundColor(isNoShow ? .white : .red)
+                                    .padding(.horizontal, 14).padding(.vertical, 8)
+                                    .background(isNoShow ? Color.red : Color.red.opacity(0.08))
+                                    .cornerRadius(8)
+                                }
+                                .buttonStyle(.plain)
+
+                                Button {
+                                    guard !isCheckedIn else { return }
+                                    Task {
+                                        updatingStatus = true
+                                        try? await appointmentStore.updateStatus(appointmentId: appt.id, status: .completed)
+                                        updatingStatus = false
+                                    }
+                                } label: {
+                                    HStack(spacing: 5) {
+                                        if isCheckedIn { Image(systemName: "checkmark").font(.caption2.weight(.bold)) }
+                                        Text("Checked In")
+                                    }
+                                    .font(.system(size: 13, weight: .semibold))
+                                    .foregroundColor(isCheckedIn ? .white : .green)
+                                    .padding(.horizontal, 14).padding(.vertical, 8)
+                                    .background(isCheckedIn ? Color.green : Color.green.opacity(0.08))
+                                    .cornerRadius(8)
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        }
                     }
                 }
                 

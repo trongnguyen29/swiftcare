@@ -143,6 +143,9 @@ struct GlobalAppointmentsView: View {
                     },
                     onSendReminder: {
                         try await appointmentStore.sendReminder(for: appointment)
+                    },
+                    onDelete: {
+                        Task { try? await appointmentStore.delete(appointmentId: appointment.id) }
                     }
                 )
                 .opacity(isSeen ? 0.76 : 1)

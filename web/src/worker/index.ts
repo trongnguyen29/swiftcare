@@ -103,6 +103,14 @@ async function sbPost<T>(env: Env, path: string, body: unknown, prefer = ""): Pr
   return (text ? JSON.parse(text) : {}) as T;
 }
 
+async function sbDelete(env: Env, path: string): Promise<void> {
+  const res = await fetch(`${env.SUPABASE_URL}/rest/v1/${path}`, {
+    method: "DELETE",
+    headers: sbHeaders(env),
+  });
+  if (!res.ok) throw new Error(`Supabase error: ${await res.text()}`);
+}
+
 async function sbPatch<T>(env: Env, path: string, body: unknown): Promise<T> {
   const res = await fetch(`${env.SUPABASE_URL}/rest/v1/${path}`, {
     method: "PATCH",
@@ -410,6 +418,55 @@ app.post("/api/transcribe", async (c) => {
   }
 });
 
+// ── Appointments CRUD ─────────────────────────────────────────────────────────
+
+// Create a new appointment via service-role key (bypasses RLS).
+// Body: { patientId: string, resource: object }
+// Returns the same shape as the Supabase fhir_appointment row ([FHIRAppointmentRow][]).
+app.post("/api/appointments", async (c) => {
+  try {
+    const { patientId, resource } = await c.req.json<{
+      patientId: string;
+      resource: Record<string, unknown>;
+    }>();
+    const fhirId = resource.id as string;
+    if (!fhirId) return c.json({ error: "resource.id is required" }, 400);
+    const rows = await sbPost<unknown[]>(
+      c.env,
+      "fhir_appointment",
+      { fhir_id: fhirId, patient_id: patientId, resource },
+      "return=representation",
+    );
+    return c.json(rows);
+  } catch (e: unknown) {
+    return c.json({ error: (e as Error).message }, 500);
+  }
+});
+
+// Update appointment status — fetches existing resource and merges in the new status
+// so other FHIR fields are not overwritten.
+app.patch("/api/appointments/:id/status", async (c) => {
+  try {
+    const fhirId = c.req.param("id");
+    const { status } = await c.req.json<{ status: string }>();
+
+    const rows = await sbGet<{ fhir_id: string; patient_id: string; resource: Record<string, unknown> }[]>(
+      c.env,
+      `fhir_appointment?fhir_id=eq.${encodeURIComponent(fhirId)}&select=fhir_id,patient_id,resource`,
+    );
+    if (!rows.length) return c.json({ error: "Appointment not found" }, 404);
+
+    const updated = await sbPatch<unknown[]>(
+      c.env,
+      `fhir_appointment?fhir_id=eq.${encodeURIComponent(fhirId)}`,
+      { resource: { ...rows[0].resource, status } },
+    );
+    return c.json(updated[0] ?? {});
+  } catch (e: unknown) {
+    return c.json({ error: (e as Error).message }, 500);
+  }
+});
+
 // ── Visits CRUD ───────────────────────────────────────────────────────────────
 
 // Create a new visit (or upsert by id if provided)
@@ -462,6 +519,41 @@ app.patch("/api/visits/:id", async (c) => {
     const body = await c.req.json<Partial<Visit>>();
     const rows = await sbPatch<Visit[]>(c.env, `visits?id=eq.${id}`, body);
     return c.json(rows[0] ?? {});
+  } catch (e: unknown) {
+    return c.json({ error: (e as Error).message }, 500);
+  }
+});
+
+// Delete an appointment
+app.delete("/api/appointments/:id", async (c) => {
+  try {
+    const fhirId = c.req.param("id");
+    await sbDelete(c.env, `fhir_appointment?fhir_id=eq.${encodeURIComponent(fhirId)}`);
+    return c.json({ success: true });
+  } catch (e: unknown) {
+    return c.json({ error: (e as Error).message }, 500);
+  }
+});
+
+// Get all appointments
+app.get("/api/appointments", async (c) => {
+  try {
+    const rows = await sbGet<unknown[]>(
+      c.env,
+      "fhir_appointment?select=fhir_id,patient_id,resource&order=resource->start.asc"
+    );
+    return c.json(rows);
+  } catch (e: unknown) {
+    return c.json({ error: (e as Error).message }, 500);
+  }
+});
+
+// Delete a visit
+app.delete("/api/visits/:id", async (c) => {
+  try {
+    const id = c.req.param("id");
+    await sbDelete(c.env, `visits?id=eq.${id}`);
+    return c.json({ success: true });
   } catch (e: unknown) {
     return c.json({ error: (e as Error).message }, 500);
   }

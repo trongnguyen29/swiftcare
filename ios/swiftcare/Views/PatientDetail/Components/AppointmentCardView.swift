@@ -6,10 +6,12 @@ struct AppointmentCardView: View {
     let patientMRN: String
     let onOpenPatient: (() -> Void)?
     let onSendReminder: (() async throws -> Void)?
+    var onDelete: (() -> Void)? = nil
 
     @ObservedObject private var contacts = PatientContactStore.shared
     @State private var sendingReminder = false
     @State private var reminderError: String?
+    @State private var confirmDelete = false
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
@@ -18,12 +20,26 @@ struct AppointmentCardView: View {
             } else {
                 appointmentContent
             }
-            reminderControl
+            VStack(alignment: .trailing, spacing: 8) {
+                reminderControl
+                if onDelete != nil {
+                    Button { confirmDelete = true } label: {
+                        Image(systemName: "trash").font(.caption).foregroundColor(.red.opacity(0.6))
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
         }
         .padding()
         .background(Color(UIColor.systemBackground))
         .cornerRadius(16)
         .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color(UIColor.separator), lineWidth: 0.5))
+        .confirmationDialog("Delete this appointment?", isPresented: $confirmDelete, titleVisibility: .visible) {
+            Button("Delete", role: .destructive) { onDelete?() }
+            Button("Cancel", role: .cancel) { }
+        } message: {
+            Text("This appointment will be permanently removed.")
+        }
         .alert("Reminder Not Sent", isPresented: Binding(
             get: { reminderError != nil },
             set: { if !$0 { reminderError = nil } }
@@ -139,6 +155,7 @@ struct StatusBadge: View {
         case .scheduled: return .orange
         case .canceled:  return .red
         case .completed: return .green
+        case .noShow:    return .gray
         }
     }
 }
@@ -154,23 +171,13 @@ struct ActionButton: View {
                 Image(systemName: "bell.fill"); Text("Send Reminder")
             }
         }
-        .font(.caption)
-        .fontWeight(.semibold)
+        .font(.caption.weight(.semibold))
         .padding(.horizontal, 12)
         .padding(.vertical, 6)
         .foregroundColor(isReminderSent ? .brand : .white)
-        .background(isReminderSent ? Color.clear : Color.init(red: 0.1, green: 0.2, blue: 0.4)) // Dark navy blue from Figma
-        .cornerRadius(8)
-        .overlay(
-            RoundedRectangle(cornerRadius: 8)
-                .stroke(isReminderSent ? Color.brand.opacity(0.3) : Color.clear, lineWidth: 1)
-        )
-        .font(.caption).fontWeight(.semibold)
-        .padding(.horizontal, 12).padding(.vertical, 6)
-        .foregroundColor(isReminderSent ? .brand : .white)
         .background(isReminderSent ? Color.clear : Color(red: 0.1, green: 0.2, blue: 0.4))
         .cornerRadius(8)
-        .overlay(RoundedRectangle(cornerRadius: 8).stroke(isReminderSent ? Color.brandRose.opacity(0.3) : Color.clear, lineWidth: 1))
+        .overlay(RoundedRectangle(cornerRadius: 8).stroke(isReminderSent ? Color.brand.opacity(0.3) : Color.clear, lineWidth: 1))
     }
 }
 

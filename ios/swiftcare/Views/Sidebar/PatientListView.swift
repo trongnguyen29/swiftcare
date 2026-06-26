@@ -5,27 +5,12 @@ enum SortKey {
     case risk
 }
 
-enum PatientFilter: String, CaseIterable {
-    case all      = "all"
-    case positive = "positive"
-    case control  = "control"
-
-    var label: String {
-        switch self {
-        case .all:      return "All"
-        case .positive: return "LC+"
-        case .control:  return "Control"
-        }
-    }
-}
-
 struct PatientListView: View {
     @Binding var selectedPatient: Patient?
-    
+
     @State private var patients: [Patient] = []
     @State private var query: String = ""
     @State private var sort: SortKey = .name
-    @State private var filter: PatientFilter = .all
     @State private var isLoading: Bool = false
     @State private var errorMessage: String? = nil
     
@@ -47,7 +32,6 @@ struct PatientListView: View {
     }
     
     @EnvironmentObject var auth: AuthService
-    @State private var showMFAEnroll = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -64,20 +48,6 @@ struct PatientListView: View {
                 TextField("Search by name…", text: $query)
                     .textFieldStyle(RoundedBorderTextFieldStyle())
                     .padding(.horizontal)
-                
-                // Filter (All / LC+ / Control)
-                HStack {
-                    Text("Filter")
-                        .font(.caption).foregroundColor(.secondary)
-                    Picker("Filter", selection: $filter) {
-                        ForEach(PatientFilter.allCases, id: \.self) { f in
-                            Text(f.label).tag(f)
-                        }
-                    }
-                    .pickerStyle(SegmentedPickerStyle())
-                }
-                .padding(.horizontal)
-                .onChange(of: filter) { Task { await loadPatients() } }
 
                 // Sort (Name / Risk)
                 HStack {
@@ -125,60 +95,13 @@ struct PatientListView: View {
             }
         }
         .task { await loadPatients() }
-        .sheet(isPresented: $showMFAEnroll) {
-            MFAEnrollView().environmentObject(auth)
-        }
-        .safeAreaInset(edge: .bottom) {
-            securityFooter
-        }
     }
 
-    private var securityFooter: some View {
-        VStack(spacing: 0) {
-            Divider()
-            VStack(spacing: 8) {
-                if auth.biometricsAvailable {
-                    Toggle(isOn: Binding(
-                        get: { auth.biometricsEnabled },
-                        set: { _ in
-                            Task {
-                                if auth.biometricsEnabled { auth.disableBiometrics() }
-                                else { await auth.enableBiometrics() }
-                            }
-                        }
-                    )) {
-                        Label("Touch ID", systemImage: "touchid")
-                            .font(.subheadline)
-                    }
-                    .tint(.brand)
-                }
-
-                if auth.isMFAEnrolled {
-                    Label("2FA Active", systemImage: "checkmark.shield.fill")
-                        .font(.subheadline)
-                        .foregroundColor(.green)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                } else {
-                    Button(action: { showMFAEnroll = true }) {
-                        Label("Set up 2FA", systemImage: "lock.shield")
-                            .font(.subheadline)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                    }
-                    .foregroundColor(.brand)
-                }
-            }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 10)
-            .background(Color(UIColor.systemGroupedBackground))
-        }
-    }
-
-    
     func loadPatients() async {
         isLoading = true
         errorMessage = nil
         do {
-            patients = try await APIService.shared.queryPatients(filter: filter.rawValue)
+            patients = try await APIService.shared.queryPatients(filter: "all")
         } catch {
             errorMessage = error.localizedDescription
         }
