@@ -127,10 +127,14 @@ class VisitsService {
     // MARK: - Fetch
 
     func fetchVisits(patientPtnum: String) async throws -> [Visit] {
-        let url = URL(string: "\(workerUrl)/api/visits?ptnum=\(patientPtnum)")!
-        var request = URLRequest(url: url)
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        let (data, response) = try await URLSession.shared.data(for: request)
+        // Query Supabase directly with JWT so RLS filters to this practitioner's visits only
+        let url = supabaseURL(params: [
+            URLQueryItem(name: "select", value: "*"),
+            URLQueryItem(name: "patient_ptnum", value: "eq.\(patientPtnum)"),
+            URLQueryItem(name: "order", value: "created_at.desc"),
+            URLQueryItem(name: "limit", value: "50"),
+        ])
+        let (data, response) = try await URLSession.shared.data(for: supabaseRequest(url))
         guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
             throw Self.serverError(data, response)
         }
@@ -138,14 +142,38 @@ class VisitsService {
     }
 
     func fetchUnassigned() async throws -> [Visit] {
-        let url = URL(string: "\(workerUrl)/api/visits?unassigned=true")!
-        var request = URLRequest(url: url)
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        let (data, response) = try await URLSession.shared.data(for: request)
+        // Query Supabase directly with JWT — RLS ensures only this practitioner's visits appear
+        let url = supabaseURL(params: [
+            URLQueryItem(name: "select", value: "*"),
+            URLQueryItem(name: "patient_ptnum", value: "is.null"),
+            URLQueryItem(name: "order", value: "created_at.desc"),
+            URLQueryItem(name: "limit", value: "50"),
+        ])
+        let (data, response) = try await URLSession.shared.data(for: supabaseRequest(url))
         guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
             throw Self.serverError(data, response)
         }
         return try JSONDecoder().decode([Visit].self, from: data)
+    }
+
+    // MARK: - Supabase direct query helpers
+
+    private let supabaseBase = "https://zbnvigxkforwbmphghpg.supabase.co"
+    private let supabaseKey  = "sb_publishable_U3hegesGlIhrENKOreNbuQ_WIKcYrOL"
+
+    private func supabaseURL(params: [URLQueryItem]) -> URL {
+        var c = URLComponents(string: "\(supabaseBase)/rest/v1/visits")!
+        c.queryItems = params
+        return c.url!
+    }
+
+    private func supabaseRequest(_ url: URL) -> URLRequest {
+        var req = URLRequest(url: url)
+        req.setValue(supabaseKey, forHTTPHeaderField: "apikey")
+        let bearer = AuthService.shared.accessToken ?? supabaseKey
+        req.setValue("Bearer \(bearer)", forHTTPHeaderField: "Authorization")
+        req.setValue("application/json", forHTTPHeaderField: "Accept")
+        return req
     }
 
     // MARK: - Audio upload

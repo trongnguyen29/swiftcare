@@ -41,7 +41,7 @@ struct ContentView: View {
                 ProgressView("Loading…")
             } else if let factor = auth.pendingMFA, !auth.biometricLocked {
                 MFAVerifyView(factor: factor)
-            } else if auth.mfaEnrollmentRequired {
+            } else if auth.mfaEnrollmentRequired && !auth.isMFAEnrolled {
                 MFAPromptView()
             } else if auth.isSignedIn && !auth.biometricLocked {
                 mainApp

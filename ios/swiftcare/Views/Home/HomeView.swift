@@ -7,6 +7,7 @@ struct HomeView: View {
     var onOpenPatient: (Patient) -> Void
     var onShowAppointments: () -> Void
 
+    @EnvironmentObject private var auth: AuthService
     @StateObject private var recents = RecentPatientsStore.shared
     @ObservedObject private var appointmentStore = AppointmentStore.shared
 
@@ -14,6 +15,7 @@ struct HomeView: View {
     @State private var unassigned: [Visit] = []
     @State private var loadingUnassigned = false
     @State private var assignVisit: Visit?
+    @State private var openVisit: Visit?
 
     // Patient search
     @State private var searchText = ""
@@ -60,6 +62,9 @@ struct HomeView: View {
         .sheet(item: $assignVisit) { visit in
             AssignPatientView(visitId: visit.id) { _ in Task { await loadUnassigned() } }
         }
+        .sheet(item: $openVisit) { visit in
+            VisitDetailSheet(visit: visit, onAssign: { assignVisit = visit })
+        }
         .task {
             await appointmentStore.loadAppointments()
             await loadUnassigned()
@@ -73,10 +78,15 @@ struct HomeView: View {
     // MARK: - Greeting
 
     private var greeting: some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text(greetingText).font(.title.bold())
-            Text(today.formatted(.dateTime.weekday(.wide).month().day()))
-                .font(.subheadline).foregroundColor(.secondary)
+        HStack(alignment: .top) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(greetingText).font(.title.bold())
+                Text(today.formatted(.dateTime.weekday(.wide).month().day()))
+                    .font(.subheadline).foregroundColor(.secondary)
+            }
+            Spacer()
+            Button("Sign Out") { Task { await auth.signOut() } }
+                .font(.subheadline).foregroundColor(.red)
         }
     }
 
@@ -232,7 +242,9 @@ struct HomeView: View {
                     .font(.subheadline).foregroundColor(.secondary)
             } else {
                 ForEach(unassigned) { visit in
-                    UnassignedCard(visit: visit) { assignVisit = visit }
+                    UnassignedCard(visit: visit,
+                                   onOpen: { openVisit = visit },
+                                   onAssign: { assignVisit = visit })
                 }
             }
         }
@@ -402,31 +414,43 @@ private struct StatCard: View {
 
 private struct UnassignedCard: View {
     let visit: Visit
+    let onOpen: () -> Void
     let onAssign: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(formattedDate).font(.caption.bold()).foregroundColor(.secondary)
-                    VisitStatusBadge(status: visit.status)
+        Button(action: onOpen) {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(formattedDate).font(.caption.bold()).foregroundColor(.secondary)
+                        VisitStatusBadge(status: visit.status)
+                    }
+                    Spacer()
+                    Button(action: onAssign) {
+                        Label("Assign", systemImage: "person.badge.plus")
+                            .font(.system(size: 12, weight: .semibold))
+                            .padding(.horizontal, 10).padding(.vertical, 5)
+                            .background(Color.brandLight).foregroundColor(.brand).cornerRadius(8)
+                    }
+                    .buttonStyle(.plain)
                 }
-                Spacer()
-                Button(action: onAssign) {
-                    Label("Assign", systemImage: "person.badge.plus")
-                        .font(.system(size: 12, weight: .semibold))
-                        .padding(.horizontal, 10).padding(.vertical, 5)
-                        .background(Color.brandLight).foregroundColor(.brand).cornerRadius(8)
+                if !visit.transcript.isEmpty {
+                    Text(visit.transcript)
+                        .font(.caption).foregroundColor(.secondary).lineLimit(3)
                 }
+                if !visit.note.isEmpty {
+                    Text(visit.note)
+                        .font(.caption2).foregroundColor(.secondary).lineLimit(2)
+                        .padding(.top, 2)
+                }
+                Label("Tap to view full note →", systemImage: "doc.text")
+                    .font(.caption2).foregroundColor(.brand)
             }
-            if !visit.transcript.isEmpty {
-                Text(visit.transcript)
-                    .font(.caption).foregroundColor(.secondary).lineLimit(3)
-            }
+            .padding()
+            .background(Color(UIColor.secondarySystemGroupedBackground))
+            .cornerRadius(12)
         }
-        .padding()
-        .background(Color(UIColor.secondarySystemGroupedBackground))
-        .cornerRadius(12)
+        .buttonStyle(.plain)
     }
 
     private var formattedDate: String { VisitDate.display(visit.createdAt) }
