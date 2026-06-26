@@ -40,8 +40,9 @@ class AuthService: ObservableObject {
 
     private let base         = "https://zbnvigxkforwbmphghpg.supabase.co"
     private let anonKey      = "sb_publishable_U3hegesGlIhrENKOreNbuQ_WIKcYrOL"
-    private let sessionKey   = "swiftcare_auth_session"
-    private let bioKey       = "swiftcare_biometrics_enabled"
+    private let sessionKey    = "swiftcare_auth_session"
+    private let bioKey        = "swiftcare_biometrics_enabled"
+    private let bioSessionKey = "swiftcare_biometric_session" // persists through sign-out for Touch ID
     // Factor key is per-user so different accounts on same device work correctly
     private func mfaFactorKey(for userId: String) -> String { "swiftcare_mfa_factor_\(userId)" }
     private func mfaEnrolledKey(for userId: String) -> String { "swiftcare_mfa_enrolled_\(userId)" }
@@ -314,7 +315,13 @@ class AuthService: ObservableObject {
                 .deviceOwnerAuthenticationWithBiometrics,
                 localizedReason: "Enable Touch ID for SwiftCare"
             )
-            if ok { Keychain.save(Data([1]), key: bioKey) }
+            if ok {
+                Keychain.save(Data([1]), key: bioKey)
+                // Save current session so Touch ID can restore it after sign-out
+                if let sess = session, let data = try? JSONEncoder().encode(sess) {
+                    Keychain.save(data, key: bioSessionKey)
+                }
+            }
             return ok
         } catch {
             // On simulator without Touch ID enrolled, still save preference so flow works
@@ -365,15 +372,15 @@ class AuthService: ObservableObject {
         let success = await authenticateWithBiometrics()
         guard success else { return }
 
-        // Restore session from Keychain if not already in memory
+        // Restore from biometric session (survives sign-out) or regular session
+        let sessionData = Keychain.load(key: bioSessionKey) ?? Keychain.load(key: sessionKey)
         if session == nil,
-           let data = Keychain.load(key: sessionKey),
+           let data = sessionData,
            let sess = try? JSONDecoder().decode(AuthSession.self, from: data) {
             if sess.expires_at > Date().timeIntervalSince1970 {
                 await MainActor.run { session = sess }
                 scheduleRefresh(for: sess)
             } else {
-                // Expired — refresh using stored refresh token
                 await refreshToken(using: sess.refresh_token)
             }
         }
@@ -465,7 +472,11 @@ class AuthService: ObservableObject {
 
     private func apply(_ sess: AuthSession) async {
         await MainActor.run { session = sess }
-        if let data = try? JSONEncoder().encode(sess) { Keychain.save(data, key: sessionKey) }
+        if let data = try? JSONEncoder().encode(sess) {
+            Keychain.save(data, key: sessionKey)
+            // Keep a separate copy for Touch ID — survives explicit sign-out
+            if biometricsEnabled { Keychain.save(data, key: bioSessionKey) }
+        }
     }
 
     // MARK: - Helpers
