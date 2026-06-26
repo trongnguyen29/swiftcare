@@ -228,7 +228,10 @@ struct LoginView: View {
         }
         .ignoresSafeArea()
         .task {
-            if auth.biometricLocked { await auth.unlockWithBiometrics() }
+            // Only auto-prompt if biometric lock is active (app reopen, not explicit sign-out)
+            if auth.biometricLocked && auth.session != nil {
+                await auth.unlockWithBiometrics()
+            }
         }
         .sheet(isPresented: $showTouchIDPrompt) {
             TouchIDEnrollPrompt(isPresented: $showTouchIDPrompt)
