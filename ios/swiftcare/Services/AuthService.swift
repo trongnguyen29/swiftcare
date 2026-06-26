@@ -175,9 +175,11 @@ class AuthService: ObservableObject {
             req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
             try? await URLSession.shared.data(for: req)
         }
-        await MainActor.run { session = nil; pendingMFA = nil; biometricLocked = false; mfaEnrollmentRequired = false }
-        // Always clear session on explicit sign-out so a different account can sign in
+        await MainActor.run {
+            session = nil; pendingMFA = nil; biometricLocked = false; mfaEnrollmentRequired = false
+        }
         Keychain.delete(key: sessionKey)
+        await MainActor.run { RecentPatientsStore.shared.clear() }
         // bioKey and mfaFactorKey persist (preferences kept, re-enabled on next login)
     }
 

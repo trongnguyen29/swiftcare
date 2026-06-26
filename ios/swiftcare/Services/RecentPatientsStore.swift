@@ -15,10 +15,14 @@ struct RecentPatient: Codable, Identifiable, Hashable {
 final class RecentPatientsStore: ObservableObject {
     static let shared = RecentPatientsStore()
 
-    private let key = "recent_patients_v1"
     private let maxCount = 10
 
     @Published private(set) var recents: [RecentPatient] = []
+
+    private var key: String {
+        let uid = AuthService.shared.userId ?? "anonymous"
+        return "recent_patients_v1_\(uid)"
+    }
 
     private init() { load() }
 
