@@ -56,18 +56,6 @@ struct HomeView: View {
             .padding()
         }
         .background(Color(UIColor.systemGroupedBackground))
-        .toolbar {
-            ToolbarItem(placement: .navigationBarTrailing) {
-                Button("Sign Out") { Task { await auth.signOut() } }
-                    .foregroundColor(.red)
-            }
-            ToolbarItem(placement: .navigationBarLeading) {
-                if !recents.recents.isEmpty {
-                    Button("Clear Recents") { recents.clear() }
-                        .font(.caption).foregroundColor(.secondary)
-                }
-            }
-        }
         .fullScreenCover(isPresented: $showQuickRecord, onDismiss: { Task { await loadUnassigned() } }) {
             QuickRecordView()
         }
@@ -90,10 +78,15 @@ struct HomeView: View {
     // MARK: - Greeting
 
     private var greeting: some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text(greetingText).font(.title.bold())
-            Text(today.formatted(.dateTime.weekday(.wide).month().day()))
-                .font(.subheadline).foregroundColor(.secondary)
+        HStack(alignment: .top) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(greetingText).font(.title.bold())
+                Text(today.formatted(.dateTime.weekday(.wide).month().day()))
+                    .font(.subheadline).foregroundColor(.secondary)
+            }
+            Spacer()
+            Button("Sign Out") { Task { await auth.signOut() } }
+                .font(.subheadline).foregroundColor(.red)
         }
     }
 
