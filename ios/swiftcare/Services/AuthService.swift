@@ -175,11 +175,10 @@ class AuthService: ObservableObject {
             req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
             try? await URLSession.shared.data(for: req)
         }
-        await MainActor.run { session = nil; pendingMFA = nil; biometricLocked = true; mfaEnrollmentRequired = false }
-        // If biometrics enabled, keep session in Keychain so Touch ID can restore it
-        // Otherwise delete it fully (standard sign-out)
-        if !biometricsEnabled { Keychain.delete(key: sessionKey) }
-        // bioKey and mfaFactorKey always persist across sign-outs
+        await MainActor.run { session = nil; pendingMFA = nil; biometricLocked = false; mfaEnrollmentRequired = false }
+        // Always clear session on explicit sign-out so a different account can sign in
+        Keychain.delete(key: sessionKey)
+        // bioKey and mfaFactorKey persist (preferences kept, re-enabled on next login)
     }
 
     // MARK: - MFA
