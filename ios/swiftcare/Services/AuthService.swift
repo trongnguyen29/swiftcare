@@ -485,10 +485,30 @@ class AuthService: ObservableObject {
     }
 
     private func createProfile(userId: String, token: String) async throws {
+        // 1. Create profile row
         var req = urlRequest(URL(string: "\(base)/rest/v1/profiles")!, method: "POST")
         req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         req.setValue("return=minimal", forHTTPHeaderField: "Prefer")
         req.httpBody = try JSONEncoder().encode(["id": userId, "user_type": "practitioner"])
         try? await URLSession.shared.data(for: req)
+
+        // 2. Create practitioners entry
+        let ehrId = "dr-\(userId.prefix(8))"
+        var req2 = urlRequest(URL(string: "\(base)/rest/v1/practitioners")!, method: "POST")
+        req2.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        req2.setValue("return=minimal", forHTTPHeaderField: "Prefer")
+        req2.httpBody = try JSONSerialization.data(withJSONObject: ["ehr_id": ehrId])
+        try? await URLSession.shared.data(for: req2)
+
+        // 3. Link user to their practitioner FHIR resource
+        var req3 = urlRequest(URL(string: "\(base)/rest/v1/user_fhir_links")!, method: "POST")
+        req3.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        req3.setValue("return=minimal", forHTTPHeaderField: "Prefer")
+        req3.httpBody = try JSONSerialization.data(withJSONObject: [
+            "user_id": userId,
+            "fhir_resource_type": "Practitioner",
+            "fhir_resource_id": ehrId
+        ])
+        try? await URLSession.shared.data(for: req3)
     }
 }

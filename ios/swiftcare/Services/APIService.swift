@@ -28,6 +28,21 @@ class APIService {
 
     // MARK: - Patients
 
+    /// Assigns a patient to the currently authenticated practitioner in patient_practitioners.
+    /// Call this whenever a patient is synced from EHR or added to the system.
+    func assignPatientToPractitioner(patientId: String) async throws {
+        let url = URL(string: "\(supabaseUrl)/rest/v1/patient_practitioners")!
+        var req = makeRequest(url, method: "POST")
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.setValue("resolution=ignore-duplicates,return=minimal", forHTTPHeaderField: "Prefer")
+        guard let userId = AuthService.shared.userId else { return }
+        req.httpBody = try JSONSerialization.data(withJSONObject: [
+            "patient_id": patientId,
+            "practitioner_id": userId
+        ])
+        try? await URLSession.shared.data(for: req)
+    }
+
     func queryPatients(query: String = "", filter: String = "all") async throws -> [Patient] {
         let url = supabaseURL("fhir_patient", params: [
             URLQueryItem(name: "select", value: "fhir_id,resource"),
@@ -50,6 +65,9 @@ class APIService {
     }
 
     func getPatientDetail(fhirId: String) async throws -> Patient {
+        // Auto-assign this patient to the practitioner if not already (handles shared patients)
+        try? await assignPatientToPractitioner(patientId: fhirId)
+
         async let patientTask    = fetchPatientRow(fhirId: fhirId)
         async let vitalsTask     = fetchObservations(patientId: fhirId, view: "patient_latest_vitals")
         async let labsTask       = fetchObservations(patientId: fhirId, view: "patient_latest_labs")
